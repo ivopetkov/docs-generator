@@ -97,11 +97,21 @@ class DocsGenerator
                 $classOutput .= "extends " . $this->getType((string) $classData['extends']) . "\n\n";
             }
 
+            if (!empty($classData['implements'])) {
+                $implements = array_map(function($value) {
+                    return $this->getType((string) $value);
+                }, $classData['implements']);
+                $classOutput .= "implements " . implode(', ', $implements) . "\n\n";
+            }
+
             if (!empty($classData['description'])) {
                 $classOutput .= $classData['description'] . "\n\n";
             }
 
             if (!empty($classData['constants'])) {
+                usort($classData['constants'], function($data1, $data2){
+                    return strcmp($data1['name'], $data2['name']);
+                });
                 $classOutput .= '## Constants' . "\n\n";
                 foreach ($classData['constants'] as $constantData) {
                     $classOutput .= "##### const " . $this->getType((string) $constantData['type']) . ' ' . $constantData['name'] . "\n\n";
@@ -112,6 +122,9 @@ class DocsGenerator
             }
 
             if (!empty($classData['properties'])) {
+                usort($classData['properties'], function($data1, $data2){
+                    return strcmp($data1['name'], $data2['name']);
+                });
                 $propertiesOutput = '';
                 foreach ($classData['properties'] as $propertyData) {
                     if ($propertyData['isPrivate']) {
@@ -142,6 +155,9 @@ class DocsGenerator
             }
 
             if (!empty($classData['methods'])) {
+                usort($classData['methods'], function($data1, $data2){
+                    return strcmp($data1['name'], $data2['name']);
+                });
                 $methodsOutput = '';
                 foreach ($classData['methods'] as $methodData) {
                     if ($methodData['isPrivate'] || substr($methodData['name'], 0, 2) === '__') {

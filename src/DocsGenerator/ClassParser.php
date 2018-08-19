@@ -26,12 +26,10 @@ class ClassParser
     {
         if (!isset(self::$cache[$class])) {
             $result = [];
-            if (!class_exists($class)) {
+            if (!class_exists($class) && !interface_exists($class)) {
                 return null;
             }
             $reflectionClass = new \ReflectionClass($class);
-//        $reflectionClass->getInterfaces();
-//        $reflectionClass->getTraits();
 
             $result['name'] = $reflectionClass->name;
             $result['namespace'] = $reflectionClass->getNamespaceName();
@@ -40,6 +38,15 @@ class ClassParser
 
             $parentClass = $reflectionClass->getParentClass();
             $result['extends'] = $parentClass instanceof \ReflectionClass ? $parentClass->name : null;
+            $result['implements'] = $reflectionClass->getInterfaceNames();
+
+            $methodsToSkip = [];
+            if (array_search('ArrayAccess', $result['implements']) !== false) {
+                $methodsToSkip = array_merge($methodsToSkip, ['offsetGet', 'offsetExists', 'offsetSet', 'offsetUnset']);
+            }
+            if (array_search('Iterator', $result['implements']) !== false) {
+                $methodsToSkip = array_merge($methodsToSkip, ['current', 'next', 'key', 'valid', 'rewind']);
+            }
 
             $result['constants'] = [];
             $constants = $reflectionClass->getConstants();
@@ -88,6 +95,9 @@ class ClassParser
             $result['methods'] = [];
             $methods = $reflectionClass->getMethods();
             foreach ($methods as $method) {
+                if (array_search($method->name, $methodsToSkip) !== false) {
+                    continue;
+                }
                 $parameters = $method->getParameters();
                 $parametersData = [];
                 $methodComments = self::parseDocComment($method->getDocComment());
