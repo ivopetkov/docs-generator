@@ -323,7 +323,7 @@ class DocsGenerator
                 } else {
                     $parameters .= ' , ';
                 }
-                $parameters .= $this->getType((string) $parameter['type']) . ' $' . $parameter['name'] . ($parameter['value'] !== null ? ' = ' . $this->getValue($parameter['value']) : '');
+                $parameters .= $this->getType((string) $parameter['type'], $richOutput) . ' $' . $parameter['name'] . ($parameter['value'] !== null ? ' = ' . $this->getValue($parameter['value']) : '');
                 if ($parameter['isOptional']) {
                     $parameters .= ' ] ';
                 }
@@ -336,7 +336,7 @@ class DocsGenerator
         $returnType = isset($method['return']['type']) ? $method['return']['type'] : 'void';
         $name = $method['name'];
         $url = strlen($classData['extension']) > 0 ? 'http://php.net/manual/en/' . strtolower($method['class'] . '.' . $name) . '.php' : $this->getMethodOutputFilename($method['class'], $name);
-        $result .= implode(' ', $keywords) . ($method['isConstructor'] || $method['isDestructor'] ? '' : ' ' . $this->getType((string) $returnType)) . ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name) . ' ( ' . $parameters . ' )' . "\n";
+        $result .= implode(' ', $keywords) . ($method['isConstructor'] || $method['isDestructor'] ? '' : ' ' . $this->getType((string) $returnType, $richOutput)) . ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name) . ' ( ' . $parameters . ' )' . "\n";
         return trim($result);
     }
 
