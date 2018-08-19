@@ -22,7 +22,7 @@ class ClassParser
      * @param string $class
      * @return array|null
      */
-    static function parse(string $class): ?array
+    static function parse(string $class)
     {
         if (!isset(self::$cache[$class])) {
             $result = [];
