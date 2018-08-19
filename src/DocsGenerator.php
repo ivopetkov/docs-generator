@@ -270,7 +270,7 @@ class DocsGenerator
                     $classData = ClassParser::parse($part);
                     if (is_array($classData)) {
                         if (strlen($classData['extension']) > 0) {
-                            $part = '[' . $part . '](http://php.net/manual/en/' . strtolower($part) . '.php)';
+                            $part = '[' . $part . '](http://php.net/manual/en/class.' . strtolower($part) . '.php)';
                         } else {
                             $part = '[' . $part . '](' . $this->getClassOutputFilename($part) . ')';
                         }
