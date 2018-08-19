@@ -79,7 +79,7 @@ class DocsGenerator
 
         asort($classNames);
 
-        $writeFile = function(string $filename, string $content) use ($outputDir): void {
+        $writeFile = function(string $filename, string $content) use ($outputDir) {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filename, $content);
         };
