@@ -50,7 +50,7 @@ class DocsGenerator
         }
     }
 
-    public function generateMarkDown(string $outputDir)
+    public function generateMarkdown(string $outputDir)
     {
         $this->generate($outputDir, 'markdown');
     }
