@@ -234,7 +234,7 @@ class DocsGenerator
 
             $classOutput .= '## Details' . "\n\n";
             $classOutput .= "File: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
-            $methodOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
+            $classOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
 
             $writeFile($this->getClassOutputFilename($className), $classOutput);
 
