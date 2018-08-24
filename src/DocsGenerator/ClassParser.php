@@ -104,7 +104,7 @@ class ClassParser
                 foreach ($parameters as $i => $parameter) {
                     $value = null;
                     $type = null;
-                    if (isset($parameter->hasType) && $parameter->hasType()) {
+                    if ($parameter->hasType()) {
                         $type = (string) $parameter->getType();
                     }
                     if ($parameter->isOptional()) {
