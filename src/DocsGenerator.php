@@ -191,14 +191,11 @@ class DocsGenerator
                     }
 
                     if ($methodData['name'] !== '__construct') {
-                        $methodOutput .= '## Returns' . "\n\n";
-                        $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-                        if (is_array($methodData['return'])) {
-                            $methodOutput .= $methodData['return']['description'];
-                        } else {
-                            $methodOutput .= 'No value is returned.';
+                        $returnDescription = is_array($methodData['return']) ? $methodData['return']['description'] : '';
+                        if (!empty($returnDescription)) {
+                            $methodOutput .= '## Returns' . "\n\n";
+                            $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' . $returnDescription . "\n\n";
                         }
-                        $methodOutput .= "\n\n";
                     }
 
                     $methodOutput .= '## Details' . "\n\n";
