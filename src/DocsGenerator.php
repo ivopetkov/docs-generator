@@ -204,6 +204,7 @@ class DocsGenerator
                     $methodOutput .= '## Details' . "\n\n";
                     $methodOutput .= "Class: [" . $className . "](" . $this->getClassOutputFilename($className) . ")\n\n";
                     $methodOutput .= "File: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
+                    $methodOutput .= '---\n\n[back to index](index.md)' . "\n\n";
 
                     $writeFile($this->getMethodOutputFilename($className, $methodData['name']), $methodOutput);
                 }
@@ -233,6 +234,7 @@ class DocsGenerator
 
             $classOutput .= '## Details' . "\n\n";
             $classOutput .= "File: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
+            $classOutput .= '---\n\n[back to index](index.md)' . "\n\n";
 
             $writeFile($this->getClassOutputFilename($className), $classOutput);
 
