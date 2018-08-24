@@ -109,7 +109,7 @@ class DocsGenerator
             }
 
             if (!empty($classData['constants'])) {
-                usort($classData['constants'], function($data1, $data2){
+                usort($classData['constants'], function($data1, $data2) {
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $classOutput .= '## Constants' . "\n\n";
@@ -122,7 +122,7 @@ class DocsGenerator
             }
 
             if (!empty($classData['properties'])) {
-                usort($classData['properties'], function($data1, $data2){
+                usort($classData['properties'], function($data1, $data2) {
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $propertiesOutput = '';
@@ -158,12 +158,12 @@ class DocsGenerator
             }
 
             if (!empty($classData['methods'])) {
-                usort($classData['methods'], function($data1, $data2){
+                usort($classData['methods'], function($data1, $data2) {
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $methodsOutput = '';
                 foreach ($classData['methods'] as $methodData) {
-                    if ($methodData['isPrivate'] || substr($methodData['name'], 0, 2) === '__') {
+                    if ($methodData['isPrivate'] || (substr($methodData['name'], 0, 2) === '__' && $methodData['name'] !== '__construct')) {
                         continue;
                     }
                     if ($methodData['class'] !== $className) {
@@ -189,14 +189,17 @@ class DocsGenerator
                             }
                         }
                     }
-                    $methodOutput .= '## Returns' . "\n\n";
-                    $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-                    if (is_array($methodData['return'])) {
-                        $methodOutput .= $methodData['return']['description'];
-                    } else {
-                        $methodOutput .= 'No value is returned.';
+
+                    if ($methodData['name'] !== '__construct') {
+                        $methodOutput .= '## Returns' . "\n\n";
+                        $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+                        if (is_array($methodData['return'])) {
+                            $methodOutput .= $methodData['return']['description'];
+                        } else {
+                            $methodOutput .= 'No value is returned.';
+                        }
+                        $methodOutput .= "\n\n";
                     }
-                    $methodOutput .= "\n\n";
 
                     $methodOutput .= '## Details' . "\n\n";
                     $methodOutput .= "Class: [" . $className . "](" . $this->getClassOutputFilename($className) . ")\n\n";
