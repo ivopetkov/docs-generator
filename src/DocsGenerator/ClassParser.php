@@ -48,6 +48,9 @@ class ClassParser
                 $methodsToSkip = array_merge($methodsToSkip, ['current', 'next', 'key', 'valid', 'rewind']);
             }
 
+            $classComments = self::parseDocComment($reflectionClass->getDocComment());
+            $result['description'] = isset($classComments['description']) ? $classComments['description'] : '';
+
             $result['constants'] = [];
             $constants = $reflectionClass->getConstants();
             foreach ($constants as $name => $value) {
@@ -148,7 +151,6 @@ class ClassParser
             }
 
             $result['extension'] = $reflectionClass->getExtensionName();
-
             self::$cache[$class] = $result;
         }
         return self::$cache[$class];

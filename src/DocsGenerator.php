@@ -237,6 +237,9 @@ class DocsGenerator
             $writeFile($this->getClassOutputFilename($className), $classOutput);
 
             $indexOutput .= '### [' . $className . '](' . $this->getClassOutputFilename($className) . ')' . "\n\n";
+            if (!empty($classData['description'])) {
+                $indexOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $classData['description'] . "\n\n";
+            }
         }
 
         $writeFile('index.md', $indexOutput);
