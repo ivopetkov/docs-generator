@@ -73,21 +73,23 @@ class ClassParser
                     'isProtected' => $property->isProtected(),
                     'isPublic' => $property->isPublic(),
                     'isStatic' => $property->isStatic(),
+                    'isReadOnly' => false,
                     'description' => isset($propertyComments['description']) ? $propertyComments['description'] : '',
                 ];
             }
 
             if (!empty($classComments['properties'])) {
-                foreach ($classComments['properties'] as $property) {
+                foreach ($classComments['properties'] as $propertyComments) {
                     $result['properties'][] = [
-                        'name' => $property['name'],
+                        'name' => $propertyComments['name'],
                         'value' => null,
-                        'type' => $property['type'],
+                        'type' => $propertyComments['type'],
                         'isPrivate' => false,
                         'isProtected' => false,
                         'isPublic' => true,
                         'isStatic' => false,
-                        'description' => isset($property['description']) ? $property['description'] : '',
+                        'isReadOnly' => isset($propertyComments['readonly']) ? $propertyComments['readonly'] : false,
+                        'description' => isset($propertyComments['description']) ? $propertyComments['description'] : '',
                     ];
                 }
             }
@@ -115,14 +117,17 @@ class ClassParser
                             $type = gettype($value);
                         }
                     }
+                    $description = '';
                     if (isset($methodComments['parameters'][$i]) && $methodComments['parameters'][$i]['name'] === $parameter->name) {
                         $type = $methodComments['parameters'][$i]['type'];
+                        $description = $methodComments['parameters'][$i]['description'];
                     }
                     $parametersData[] = [
                         'name' => $parameter->name,
                         'value' => $value,
                         'type' => $type,
                         'isOptional' => $parameter->isOptional(),
+                        'description' => $description,
                     ];
                 }
                 $result['methods'][] = [
@@ -203,6 +208,7 @@ class ClassParser
                             'name' => isset($valueParts[1]) ? trim($valueParts[1], ' $') : null,
                             'type' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
                             'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
+                            'readonly' => $tag === '@property-read'
                         ];
                     }
                 }

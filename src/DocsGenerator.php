@@ -143,6 +143,9 @@ class DocsGenerator
                     if ($propertyData['isPrivate']) {
                         $keywords[] = 'private';
                     }
+                    if ($propertyData['isReadOnly']) {
+                        $keywords[] = 'readonly';
+                    }
                     $propertiesOutput .= "##### " . implode(' ', $keywords) . ' ' . $this->getType((string) $propertyData['type']) . ' $' . $propertyData['name'] . "\n\n";
                     if (!empty($propertyData['description'])) {
                         $propertiesOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $propertyData['description'] . "\n\n";
