@@ -57,7 +57,7 @@ class ClassParser
                 $result['constants'][] = [
                     'name' => $name,
                     'value' => $value,
-                    'type' => gettype($value),
+                    'type' => $value !== null ? self::updateType(gettype($value)) : null,
                     'description' => '',
                 ];
             }
@@ -70,8 +70,9 @@ class ClassParser
                 $propertyComments = self::parseDocComment($property->getDocComment());
                 $result['properties'][] = [
                     'name' => $property->name,
+                    'class' => $property->class,
                     'value' => $value,
-                    'type' => $propertyComments['type'] !== null ? $propertyComments['type'] : gettype($value),
+                    'type' => $propertyComments['type'] !== null ? $propertyComments['type'] : ($value !== null ? self::updateType(gettype($value)) : null),
                     'isPrivate' => $property->isPrivate(),
                     'isProtected' => $property->isProtected(),
                     'isPublic' => $property->isPublic(),
@@ -85,6 +86,7 @@ class ClassParser
                 foreach ($classComments['properties'] as $propertyComments) {
                     $result['properties'][] = [
                         'name' => $propertyComments['name'],
+                        'class' => $class,
                         'value' => null,
                         'type' => $propertyComments['type'],
                         'isPrivate' => false,
@@ -110,14 +112,14 @@ class ClassParser
                     $value = null;
                     $type = null;
                     if ($parameter->hasType()) {
-                        $type = (string) $parameter->getType();
+                        $type = self::updateType((string) $parameter->getType());
                     }
                     if ($parameter->isOptional()) {
                         if ($parameter->isDefaultValueAvailable()) {
                             $value = $parameter->getDefaultValue();
                         }
-                        if ($type === null) {
-                            $type = gettype($value);
+                        if ($type === null && $value !== null) {
+                            $type = self::updateType(gettype($value));
                         }
                     }
                     $description = '';
@@ -218,6 +220,19 @@ class ClassParser
             $result['exceptions'] = array_unique($result['exceptions']);
         }
         return $result;
+    }
+
+    /**
+     * 
+     * @param string $type
+     * @return string
+     */
+    private static function updateType(string $type): string
+    {
+        if ($type === 'integer') {
+            return 'int';
+        }
+        return $type;
     }
 
 }

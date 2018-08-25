@@ -126,6 +126,7 @@ class DocsGenerator
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $propertiesOutput = '';
+                $inheritedProperties = [];
                 foreach ($classData['properties'] as $propertyData) {
                     if ($propertyData['isPrivate']) {
                         continue;
@@ -146,10 +147,22 @@ class DocsGenerator
                     if ($propertyData['isReadOnly']) {
                         $keywords[] = 'readonly';
                     }
-                    $propertiesOutput .= "##### " . implode(' ', $keywords) . ' ' . $this->getType((string) $propertyData['type']) . ' $' . $propertyData['name'] . "\n\n";
+                    $propertyOutput = "##### " . implode(' ', $keywords) . ' ' . $this->getType((string) $propertyData['type']) . ' $' . $propertyData['name'] . "\n\n";
+                    if ($propertyData['class'] !== $className) {
+                        if (!isset($inheritedProperties[$propertyData['class']])) {
+                            $inheritedProperties[$propertyData['class']] = [];
+                        }
+                        $inheritedProperties[$propertyData['class']][] = $propertyOutput;
+                        continue;
+                    }
+                    $propertiesOutput .= $propertyOutput;
                     if (!empty($propertyData['description'])) {
                         $propertiesOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $propertyData['description'] . "\n\n";
                     }
+                }
+                foreach ($inheritedProperties as $inheritedClassName => $inheritedPropertiesOutput) {
+                    $propertiesOutput .= '### Inherited from ' . $inheritedClassName . ":\n\n";
+                    $propertiesOutput .= implode('', $inheritedPropertiesOutput);
                 }
                 if (!empty($propertiesOutput)) {
                     $classOutput .= '## Properties' . "\n\n";
@@ -162,11 +175,16 @@ class DocsGenerator
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $methodsOutput = '';
+                $inheritedMethods = [];
                 foreach ($classData['methods'] as $methodData) {
                     if ($methodData['isPrivate'] || (substr($methodData['name'], 0, 2) === '__' && $methodData['name'] !== '__construct')) {
                         continue;
                     }
                     if ($methodData['class'] !== $className) {
+                        if (!isset($inheritedMethods[$methodData['class']])) {
+                            $inheritedMethods[$methodData['class']] = [];
+                        }
+                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData) . "\n\n";
                         continue;
                     }
                     $methodsOutput .= "##### " . $this->getMethod($methodData) . "\n\n";
@@ -205,27 +223,13 @@ class DocsGenerator
 
                     $writeFile($this->getMethodOutputFilename($className, $methodData['name']), $methodOutput);
                 }
+                foreach ($inheritedMethods as $inheritedClassName => $inheritedMethodsOutput) {
+                    $methodsOutput .= '### Inherited from ' . $inheritedClassName . ":\n\n";
+                    $methodsOutput .= implode('', $inheritedMethodsOutput);
+                }
                 if (!empty($methodsOutput)) {
                     $classOutput .= '## Methods' . "\n\n";
                     $classOutput .= $methodsOutput;
-                }
-
-                $inheritedMethods = [];
-                foreach ($classData['methods'] as $methodData) {
-                    if ($methodData['isPrivate'] || substr($methodData['name'], 0, 2) === '__') {
-                        continue;
-                    }
-                    if ($methodData['class'] === $className) {
-                        continue;
-                    }
-                    if (!isset($inheritedMethods[$methodData['class']])) {
-                        $inheritedMethods[$methodData['class']] = [];
-                    }
-                    $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData) . "\n\n";
-                }
-                foreach ($inheritedMethods as $inheritedClassName => $inheritedMethodsDescription) {
-                    $classOutput .= '### Inherited from ' . $inheritedClassName . ":\n\n";
-                    $classOutput .= implode('', $inheritedMethodsDescription);
                 }
             }
 
@@ -341,16 +345,18 @@ class DocsGenerator
             $parameters = 'void';
         } else {
             $parameters = '';
+            $bracketsToAddInTheEnd = 0;
             foreach ($method['parameters'] as $parameter) {
                 if ($parameter['isOptional']) {
                     $parameters .= ' [, ';
+                    $bracketsToAddInTheEnd++;
                 } else {
                     $parameters .= ' , ';
                 }
                 $parameters .= $this->getType((string) $parameter['type'], $richOutput) . ' $' . $parameter['name'] . ($parameter['value'] !== null ? ' = ' . $this->getValue($parameter['value']) : '');
-                if ($parameter['isOptional']) {
-                    $parameters .= ' ] ';
-                }
+            }
+            if ($bracketsToAddInTheEnd > 0) {
+                $parameters .= ' ' . str_repeat(']', $bracketsToAddInTheEnd) . ' ';
             }
             $parameters = trim($parameters, ' ,');
             if (substr($parameters, 0, 2) === '[,') {
