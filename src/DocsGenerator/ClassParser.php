@@ -163,13 +163,14 @@ class ClassParser
      * @param string $comment
      * @return array
      */
-    private static function parseDocComment(string$comment): array
+    private static function parseDocComment(string $comment): array
     {
         $comment = trim($comment, "/* \n\r\t");
         $lines = explode("\n", $comment);
         $temp = [];
         foreach ($lines as $line) {
             $line = trim($line, " *");
+            $line = trim($line);
             if (isset($line{0})) {
                 $temp[] = $line;
             }
@@ -182,43 +183,62 @@ class ClassParser
         $result['return'] = null;
         $result['exceptions'] = [];
         $result['properties'] = [];
-        if (isset($lines[0])) {
-            $result['description'] = $lines[0][0] === '@' ? '' : $lines[0];
-            foreach ($lines as $line) {
-                if ($line[0] === '@') {
-                    $lineParts = explode(' ', $line, 2);
-                    $tag = trim($lineParts[0]);
-                    $value = trim($lineParts[1]);
-                    if ($tag === '@param') {
-                        $valueParts = explode(' ', $value, 3);
-                        $result['parameters'][] = [
-                            'name' => isset($valueParts[1]) ? trim($valueParts[1], ' $') : null,
-                            'type' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
-                            'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
-                        ];
-                    } elseif ($tag === '@return') {
-                        $valueParts = explode(' ', $value, 2);
-                        $result['return'] = [
-                            'type' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
-                            'description' => isset($valueParts[1]) ? trim($valueParts[1]) : null,
-                        ];
-                    } elseif ($tag === '@throws') {
-                        $result['exceptions'][] = $value;
-                    } elseif ($tag === '@var') {
-                        $result['type'] = $value;
-                    } elseif ($tag === '@property' || $tag === '@property-read' || $tag === '@property-write') {
-                        $valueParts = explode(' ', $value, 3);
-                        $result['properties'][] = [
-                            'name' => isset($valueParts[1]) ? trim($valueParts[1], ' $') : null,
-                            'type' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
-                            'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
-                            'readonly' => $tag === '@property-read'
-                        ];
-                    }
+
+        foreach ($lines as $i => $line) {
+            if ($line[0] === '@') {
+                break;
+            }
+            $result['description'] .= $line . "\n";
+            unset($lines[$i]);
+        }
+        $result['description'] = trim($result['description']);
+        
+        $previousTypedLineIndex = null;
+        foreach ($lines as $i => $line) {
+            if ($line[0] !== '@') {
+                if ($previousTypedLineIndex !== null) {
+                    $lines[$previousTypedLineIndex] .= "\n" . $lines[$i];
+                }
+                unset($lines[$i]);
+                continue;
+            }
+            $previousTypedLineIndex = $i;
+        }
+
+        foreach ($lines as $line) {
+            if ($line[0] === '@') {
+                $lineParts = explode(' ', $line, 2);
+                $tag = trim($lineParts[0]);
+                $value = trim($lineParts[1]);
+                if ($tag === '@param') {
+                    $valueParts = explode(' ', $value, 3);
+                    $result['parameters'][] = [
+                        'name' => isset($valueParts[1]) ? trim($valueParts[1], ' $') : null,
+                        'type' => isset($valueParts[0]) ? self::updateType(trim($valueParts[0])) : null,
+                        'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
+                    ];
+                } elseif ($tag === '@return') {
+                    $valueParts = explode(' ', $value, 2);
+                    $result['return'] = [
+                        'type' => isset($valueParts[0]) ? self::updateType(trim($valueParts[0])) : null,
+                        'description' => isset($valueParts[1]) ? trim($valueParts[1]) : null,
+                    ];
+                } elseif ($tag === '@throws') {
+                    $result['exceptions'][] = $value;
+                } elseif ($tag === '@var') {
+                    $result['type'] = self::updateType($value);
+                } elseif ($tag === '@property' || $tag === '@property-read' || $tag === '@property-write') {
+                    $valueParts = explode(' ', $value, 3);
+                    $result['properties'][] = [
+                        'name' => isset($valueParts[1]) ? trim($valueParts[1], ' $') : null,
+                        'type' => isset($valueParts[0]) ? self::updateType(trim($valueParts[0])) : null,
+                        'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
+                        'readonly' => $tag === '@property-read'
+                    ];
                 }
             }
-            $result['exceptions'] = array_unique($result['exceptions']);
         }
+        $result['exceptions'] = array_unique($result['exceptions']);
         return $result;
     }
 
@@ -229,10 +249,20 @@ class ClassParser
      */
     private static function updateType(string $type): string
     {
-        if ($type === 'integer') {
-            return 'int';
+        $parts = explode('|', $type);
+        $result = [];
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === 'integer') {
+                $part = 'int';
+            } elseif ($part === 'boolean') {
+                $part = 'bool';
+            }
+            if (isset($part[0])) {
+                $result[] = $part;
+            }
         }
-        return $type;
+        return implode('|', $result);
     }
 
 }

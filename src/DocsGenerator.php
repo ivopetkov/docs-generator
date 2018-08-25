@@ -160,8 +160,9 @@ class DocsGenerator
                         $propertiesOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $propertyData['description'] . "\n\n";
                     }
                 }
+                ksort($inheritedProperties);
                 foreach ($inheritedProperties as $inheritedClassName => $inheritedPropertiesOutput) {
-                    $propertiesOutput .= '### Inherited from ' . $inheritedClassName . ":\n\n";
+                    $propertiesOutput .= '### Inherited from ' . $this->getType($inheritedClassName) . ":\n\n";
                     $propertiesOutput .= implode('', $inheritedPropertiesOutput);
                 }
                 if (!empty($propertiesOutput)) {
@@ -223,8 +224,9 @@ class DocsGenerator
 
                     $writeFile($this->getMethodOutputFilename($className, $methodData['name']), $methodOutput);
                 }
+                ksort($inheritedMethods);
                 foreach ($inheritedMethods as $inheritedClassName => $inheritedMethodsOutput) {
-                    $methodsOutput .= '### Inherited from ' . $inheritedClassName . ":\n\n";
+                    $methodsOutput .= '### Inherited from ' . $this->getType($inheritedClassName) . ":\n\n";
                     $methodsOutput .= implode('', $inheritedMethodsOutput);
                 }
                 if (!empty($methodsOutput)) {
