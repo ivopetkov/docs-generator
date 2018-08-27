@@ -297,12 +297,16 @@ class DocsGenerator
             $part = trim(trim($part), '\\');
             if ($richOutput) {
                 if ($part !== 'void' && $part !== 'string' && $part !== 'int' && $part !== 'boolean' && $part !== 'array') {
-                    $classData = ClassParser::parse($part);
+                    $class = $part;
+                    if (substr($class, -2) === '[]') {
+                        $class = substr($class, 0, -2);
+                    }
+                    $classData = ClassParser::parse($class);
                     if (is_array($classData)) {
                         if (strlen($classData['extension']) > 0) {
-                            $part = '[' . $part . '](http://php.net/manual/en/class.' . strtolower($part) . '.php)';
+                            $part = '[' . $part . '](http://php.net/manual/en/class.' . strtolower($class) . '.php)';
                         } else {
-                            $part = '[' . $part . '](' . $this->getClassOutputFilename($part) . ')';
+                            $part = '[' . $part . '](' . $this->getClassOutputFilename($class) . ')';
                         }
                     }
                 }
