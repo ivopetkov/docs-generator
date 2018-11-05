@@ -80,7 +80,7 @@ class DocsGenerator
             }
         }
 
-        asort($classNames);
+        ksort($classNames);
 
         $writeFile = function(string $filename, string $content) use ($outputDir) {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
