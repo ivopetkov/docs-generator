@@ -209,7 +209,7 @@ class ClassParser
             if ($line[0] === '@') {
                 $lineParts = explode(' ', $line, 2);
                 $tag = trim($lineParts[0]);
-                $value = trim($lineParts[1]);
+                $value = isset($lineParts[1]) ? trim($lineParts[1]) : '';
                 if ($tag === '@param') {
                     $valueParts = explode(' ', $value, 3);
                     $result['parameters'][] = [
