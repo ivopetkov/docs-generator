@@ -91,6 +91,9 @@ class DocsGenerator
         $indexOutput .= '## Classes' . "\n\n";
         foreach ($classNames as $className => $classSourceFile) {
             $classData = ClassParser::parse($className);
+            if ($classData['internal']) {
+                continue;
+            }
 
             $classOutput = '';
 

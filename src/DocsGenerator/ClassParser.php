@@ -39,6 +39,7 @@ class ClassParser
             $parentClass = $reflectionClass->getParentClass();
             $result['extends'] = $parentClass instanceof \ReflectionClass ? $parentClass->name : null;
             $result['implements'] = $reflectionClass->getInterfaceNames();
+            $result['internal'] = $classComments['internal'];
 
             $methodsToSkip = [];
             if (array_search('ArrayAccess', $result['implements']) !== false) {
@@ -47,8 +48,7 @@ class ClassParser
             if (array_search('Iterator', $result['implements']) !== false) {
                 $methodsToSkip = array_merge($methodsToSkip, ['current', 'next', 'key', 'valid', 'rewind']);
             }
-
-            $classComments = self::parseDocComment($reflectionClass->getDocComment());
+            
             $result['description'] = isset($classComments['description']) ? $classComments['description'] : '';
 
             $result['constants'] = [];
@@ -183,6 +183,7 @@ class ClassParser
         $result['return'] = null;
         $result['exceptions'] = [];
         $result['properties'] = [];
+        $result['internal'] = false;
 
         foreach ($lines as $i => $line) {
             if ($line[0] === '@') {
@@ -192,7 +193,7 @@ class ClassParser
             unset($lines[$i]);
         }
         $result['description'] = trim($result['description']);
-        
+
         $previousTypedLineIndex = null;
         foreach ($lines as $i => $line) {
             if ($line[0] !== '@') {
@@ -235,6 +236,8 @@ class ClassParser
                         'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
                         'readonly' => $tag === '@property-read'
                     ];
+                } elseif ($tag === '@internal') {
+                    $result['internal'] = true;
                 }
             }
         }
