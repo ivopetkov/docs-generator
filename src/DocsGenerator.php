@@ -71,6 +71,9 @@ class DocsGenerator
                     require_once $file;
                     $newClasses = array_values(array_diff(get_declared_classes(), $declaredClasses));
                     foreach ($newClasses as $newClassName) {
+                        if (strpos($newClassName, 'class@anonymous') === 0) {
+                            continue;
+                        }
                         $classNames[$newClassName] = str_replace($this->projectDir, '', $file);
                     }
                 }
