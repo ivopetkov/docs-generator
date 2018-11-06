@@ -138,21 +138,22 @@ class DocsGenerator
                         continue;
                     }
                     $keywords = [];
-                    if ($propertyData['isStatic']) {
-                        $keywords[] = 'static';
-                    }
                     if ($propertyData['isPublic']) {
-                        $keywords[] = 'public';
+                        $keywords[0] = 'public';
                     }
                     if ($propertyData['isProtected']) {
-                        $keywords[] = 'protected';
+                        $keywords[1] = 'protected';
                     }
                     if ($propertyData['isPrivate']) {
-                        $keywords[] = 'private';
+                        $keywords[2] = 'private';
+                    }
+                    if ($propertyData['isStatic']) {
+                        $keywords[3] = 'static';
                     }
                     if ($propertyData['isReadOnly']) {
-                        $keywords[] = 'readonly';
+                        $keywords[4] = 'readonly';
                     }
+                    ksort($keywords);
                     $propertyOutput = "##### " . implode(' ', $keywords) . ' ' . $this->getType((string) $propertyData['type']) . ' $' . $propertyData['name'] . "\n\n";
                     if ($propertyData['class'] !== $className) {
                         if (!isset($inheritedProperties[$propertyData['class']])) {
@@ -332,24 +333,25 @@ class DocsGenerator
     {
         $result = '';
         $keywords = [];
-        if ($method['isStatic']) {
-            $keywords[] = 'static';
-        }
         if ($method['isPublic']) {
-            $keywords[] = 'public';
+            $keywords[0] = 'public';
         }
         if ($method['isProtected']) {
-            $keywords[] = 'protected';
+            $keywords[1] = 'protected';
         }
         if ($method['isPrivate']) {
-            $keywords[] = 'private';
+            $keywords[2] = 'private';
+        }
+        if ($method['isStatic']) {
+            $keywords[3] = 'static';
         }
         if ($method['isAbstract']) {
-            $keywords[] = 'abstract';
+            $keywords[4] = 'abstract';
         }
         if ($method['isFinal']) {
-            $keywords[] = 'final';
+            $keywords[5] = 'final';
         }
+        ksort($keywords);
 
         $classData = ClassParser::parse($method['class']);
 
@@ -375,10 +377,10 @@ class DocsGenerator
                 $parameters = '[' . substr($parameters, 2);
             }
         }
-        $returnType = isset($method['return']['type']) ? $method['return']['type'] : 'void';
+        $returnType = isset($method['return']['type']) ? (string) $method['return']['type'] : 'void';
         $name = $method['name'];
         $url = strlen($classData['extension']) > 0 ? 'http://php.net/manual/en/' . strtolower($method['class'] . '.' . $name) . '.php' : $this->getMethodOutputFilename($method['class'], $name);
-        $result .= implode(' ', $keywords) . ($method['isConstructor'] || $method['isDestructor'] ? '' : ' ' . $this->getType((string) $returnType, $richOutput)) . ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name) . ' ( ' . $parameters . ' )' . "\n";
+        $result .= implode(' ', $keywords) . ($method['isConstructor'] || $method['isDestructor'] ? '' : ' ' . $this->getType($returnType, $richOutput)) . ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name) . ' ( ' . $parameters . ' )' . "\n";
         return trim($result);
     }
 
