@@ -180,6 +180,15 @@ class DocsGenerator
 
             if (!empty($classData['methods'])) {
                 usort($classData['methods'], function($data1, $data2) {
+                    if ((int) $data1['isPublic'] . (int) $data1['isProtected'] . (int) $data1['isPrivate'] !== (int) $data2['isPublic'] . (int) $data2['isProtected'] . (int) $data2['isPrivate']) {
+                        if ($data1['isPublic']) {
+                            return -1;
+                        }
+                        if ($data1['isPrivate']) {
+                            return 1;
+                        }
+                        return 1;
+                    }
                     return strcmp($data1['name'], $data2['name']);
                 });
                 $methodsOutput = '';
