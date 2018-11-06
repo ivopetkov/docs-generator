@@ -208,6 +208,10 @@ class DocsGenerator
                     if (!empty($methodData['description'])) {
                         $methodsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $methodData['description'] . "\n\n";
                     }
+                    $returnDescription = is_array($methodData['return']) ? $methodData['return']['description'] : '';
+                    if (!empty($returnDescription) && $methodData['return']['type'] !== 'void') {
+                        $methodsOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Returns: ' . $returnDescription . "\n\n";
+                    }
 
                     $methodOutput = '';
                     $methodOutput .= '# ' . $methodData['class'] . '::' . $methodData['name'] . "\n\n";
