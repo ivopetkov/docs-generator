@@ -40,9 +40,9 @@ class DocsGenerator
         if (!is_dir($projectDir)) {
             throw new \InvalidArgumentException('The projectDir specified (' . $projectDir . ') is not a valid dir!');
         }
-        $this->projectDir = realpath($projectDir);
+        $this->projectDir = str_replace('\\', '/', realpath($projectDir));
         foreach ($sourceDirs as $sourceDir) {
-            $sourceDir = DIRECTORY_SEPARATOR . trim($sourceDir, '/\\');
+            $sourceDir = '/' . trim($sourceDir, '/\\');
             if (!is_dir($this->projectDir . $sourceDir)) {
                 throw new \InvalidArgumentException('The sourceDir specified (' . $this->projectDir . $sourceDir . ') is not a valid dir!');
             }
@@ -53,6 +53,17 @@ class DocsGenerator
     public function generateMarkdown(string $outputDir)
     {
         $this->generate($outputDir, 'markdown');
+    }
+
+    private function isInSourcesDirs(string $filename)
+    {
+        foreach ($this->sourceDirs as $sourceDir) {
+            if (strpos(str_replace('\\', '/', $filename), $this->projectDir . $sourceDir . '/') === 0) {
+                return true;
+                break;
+            }
+        }
+        return false;
     }
 
     private function generate(string $outputDir, string $type)
@@ -74,7 +85,7 @@ class DocsGenerator
                         if (strpos($newClassName, 'class@anonymous') === 0) {
                             continue;
                         }
-                        $classNames[$newClassName] = str_replace($this->projectDir, '', $file);
+                        $classNames[$newClassName] = str_replace($this->projectDir, '', str_replace('\\', '/', $file));
                     }
                 }
             }
@@ -87,13 +98,23 @@ class DocsGenerator
             file_put_contents($filename, $content);
         };
 
-        $indexOutput = '';
-        $indexOutput .= '## Classes' . "\n\n";
+        $temp = [];
         foreach ($classNames as $className => $classSourceFile) {
             $classData = ClassParser::parse($className);
             if ($classData['internal']) {
                 continue;
             }
+            if (!$this->isInSourcesDirs($classData['filename'])) {
+                continue;
+            }
+            $temp[$className] = $classSourceFile;
+        }
+        $classNames = $temp;
+
+        $indexOutput = '';
+        $indexOutput .= '## Classes' . "\n\n";
+        foreach ($classNames as $className => $classSourceFile) {
+            $classData = ClassParser::parse($className);
 
             $classOutput = '';
 
@@ -201,7 +222,12 @@ class DocsGenerator
                         if (!isset($inheritedMethods[$methodData['class']])) {
                             $inheritedMethods[$methodData['class']] = [];
                         }
-                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData) . "\n\n";
+                        $richOutput = true;
+                        $methodClassData = ClassParser::parse($methodData['class']);
+                        if(!$this->isInSourcesDirs($methodClassData['filename'])){
+                            $richOutput = false;
+                        }
+                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData, $richOutput) . "\n\n";
                         continue;
                     }
                     $methodsOutput .= "##### " . $this->getMethod($methodData) . "\n\n";
@@ -326,6 +352,12 @@ class DocsGenerator
                         if (strlen($classData['extension']) > 0) {
                             $part = '[' . $part . '](http://php.net/manual/en/class.' . strtolower($class) . '.php)';
                         } else {
+                            if ($classData['internal']) {
+                                continue;
+                            }
+                            if (!$this->isInSourcesDirs($classData['filename'])) {
+                                continue;
+                            }
                             $part = '[' . $part . '](' . $this->getClassOutputFilename($class) . ')';
                         }
                     }
