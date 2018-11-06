@@ -224,7 +224,7 @@ class DocsGenerator
                         }
                         $richOutput = true;
                         $methodClassData = ClassParser::parse($methodData['class']);
-                        if(!$this->isInSourcesDirs($methodClassData['filename'])){
+                        if (!$this->isInSourcesDirs($methodClassData['filename'])) {
                             $richOutput = false;
                         }
                         $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData, $richOutput) . "\n\n";
@@ -278,6 +278,24 @@ class DocsGenerator
                 if (!empty($methodsOutput)) {
                     $classOutput .= '## Methods' . "\n\n";
                     $classOutput .= $methodsOutput;
+                }
+            }
+
+            if (!empty($classData['events'])) {
+                usort($classData['events'], function($data1, $data2) {
+                    return strcmp($data1['name'], $data2['name']);
+                });
+                $eventsOutput = '';
+                foreach ($classData['events'] as $eventData) {
+                    $eventsOutput .= "##### " . $eventData['name'] . "\n\n";
+                    $eventsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Type: " . $this->getType($eventData['type']) . "\n\n";
+                    if (!empty($eventData['description'])) {
+                        $eventsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $eventData['description'] . "\n\n";
+                    }
+                }
+                if (!empty($eventsOutput)) {
+                    $classOutput .= '## Events' . "\n\n";
+                    $classOutput .= $eventsOutput;
                 }
             }
 

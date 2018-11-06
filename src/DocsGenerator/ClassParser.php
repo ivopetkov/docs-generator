@@ -48,7 +48,7 @@ class ClassParser
             if (array_search('Iterator', $result['implements']) !== false) {
                 $methodsToSkip = array_merge($methodsToSkip, ['current', 'next', 'key', 'valid', 'rewind']);
             }
-            
+
             $result['description'] = isset($classComments['description']) ? $classComments['description'] : '';
 
             $result['constants'] = [];
@@ -153,6 +153,16 @@ class ClassParser
             }
 
             $result['extension'] = $reflectionClass->getExtensionName();
+
+            $result['events'] = [];
+            foreach ($classComments['events'] as $eventComments) {
+                $result['events'][] = [
+                    'name' => $eventComments['name'],
+                    'type' => $eventComments['type'],
+                    'description' => $eventComments['description']
+                ];
+            }
+
             self::$cache[$class] = $result;
         }
         return self::$cache[$class];
@@ -183,6 +193,7 @@ class ClassParser
         $result['return'] = null;
         $result['exceptions'] = [];
         $result['properties'] = [];
+        $result['events'] = [];
         $result['internal'] = false;
 
         foreach ($lines as $i => $line) {
@@ -238,6 +249,13 @@ class ClassParser
                     ];
                 } elseif ($tag === '@internal') {
                     $result['internal'] = true;
+                } elseif ($tag === '@event') {
+                    $valueParts = explode(' ', $value, 3);
+                    $result['events'][] = [
+                        'name' => isset($valueParts[1]) ? trim($valueParts[1], ' ') : null,
+                        'type' => isset($valueParts[0]) ? self::updateType(trim($valueParts[0])) : null,
+                        'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null
+                    ];
                 }
             }
         }
