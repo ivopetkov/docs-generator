@@ -139,12 +139,18 @@ class DocsGenerator
                 usort($classData['constants'], function($data1, $data2) {
                     return strcmp($data1['name'], $data2['name']);
                 });
-                $classOutput .= '## Constants' . "\n\n";
+                $constantsOutput = '';
                 foreach ($classData['constants'] as $constantData) {
-                    $classOutput .= "##### const " . $this->getType((string) $constantData['type']) . ' ' . $constantData['name'] . "\n\n";
-                    if (!empty($constantData['description'])) {
-                        $classOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $constantData['description'] . "\n\n";
+                    if ($constantData['class'] !== $className) {
+                        $constantsOutput .= "##### const " . $this->getType((string) $constantData['type']) . ' ' . $constantData['name'] . "\n\n";
+                        if (!empty($constantData['description'])) {
+                            $constantsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $constantData['description'] . "\n\n";
+                        }
                     }
+                }
+                if (!empty($constantsOutput)) {
+                    $classOutput .= '## Constants' . "\n\n";
+                    $classOutput .= $constantsOutput;
                 }
             }
 
@@ -227,7 +233,7 @@ class DocsGenerator
                         if (!$this->isInSourcesDirs($methodClassData['filename'])) {
                             $richOutput = false;
                         }
-                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData, $richOutput) . "\n\n";
+                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData) . "\n\n";
                         continue;
                     }
                     $methodsOutput .= "##### " . $this->getMethod($methodData) . "\n\n";
