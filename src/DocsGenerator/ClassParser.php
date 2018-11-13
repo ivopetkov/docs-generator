@@ -54,11 +54,12 @@ class ClassParser
             $result['constants'] = [];
             $constants = $reflectionClass->getConstants();
             foreach ($constants as $name => $value) {
+                $constantComments = self::parseDocComment($reflectionClass->getReflectionConstant($name)->getDocComment());
                 $result['constants'][] = [
                     'name' => $name,
                     'value' => $value,
                     'type' => $value !== null ? self::updateType(gettype($value)) : null,
-                    'description' => '',
+                    'description' => isset($constantComments['description']) ? $constantComments['description'] : '',
                 ];
             }
 
