@@ -35,19 +35,22 @@ class DocsGenerator
      * @param array $sourceDirs
      * @throws \InvalidArgumentException
      */
-    public function __construct(string $projectDir, array $sourceDirs)
+    public function __construct(string $projectDir)
     {
         if (!is_dir($projectDir)) {
             throw new \InvalidArgumentException('The projectDir specified (' . $projectDir . ') is not a valid dir!');
         }
         $this->projectDir = str_replace('\\', '/', realpath($projectDir));
-        foreach ($sourceDirs as $sourceDir) {
-            $sourceDir = '/' . trim($sourceDir, '/\\');
-            if (!is_dir($this->projectDir . $sourceDir)) {
-                throw new \InvalidArgumentException('The sourceDir specified (' . $this->projectDir . $sourceDir . ') is not a valid dir!');
-            }
-            $this->sourceDirs[] = $sourceDir;
+    }
+
+    public function addSourceDir(string $dir)
+    {
+        $dir = '/' . trim($dir, '/\\');
+        if (!is_dir($this->projectDir . $dir)) {
+            throw new \InvalidArgumentException('The source dir specified (' . $this->projectDir . $dir . ') is not a valid dir!');
         }
+        $this->sourceDirs[] = $dir;
+    }
     }
 
     public function generateMarkdown(string $outputDir)
