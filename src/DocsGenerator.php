@@ -30,9 +30,14 @@ class DocsGenerator
     private $sourceDirs = [];
 
     /**
+     *
+     * @var array 
+     */
+    private $examplesDirs = [];
+
+    /**
      * 
      * @param string $projectDir
-     * @param array $sourceDirs
      * @throws \InvalidArgumentException
      */
     public function __construct(string $projectDir)
@@ -51,6 +56,14 @@ class DocsGenerator
         }
         $this->sourceDirs[] = $dir;
     }
+
+    public function addExamplesDir(string $dir)
+    {
+        $dir = '/' . trim($dir, '/\\');
+        if (!is_dir($this->projectDir . $dir)) {
+            throw new \InvalidArgumentException('The examples dir specified (' . $this->projectDir . $dir . ') is not a valid dir!');
+        }
+        $this->examplesDirs[] = $dir;
     }
 
     public function generateMarkdown(string $outputDir)
@@ -99,6 +112,90 @@ class DocsGenerator
         $writeFile = function(string $filename, string $content) use ($outputDir) {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filename, $content);
+        };
+
+        $getExamplesOutput = function($examples) {
+            $output = '';
+            $validExamples = [];
+            if (!empty($examples)) {
+                foreach ($examples as $example) {
+                    $locationsToCheck = [];
+                    foreach ($this->examplesDirs as $examplesDir) {
+                        $locationsToCheck[] = $this->projectDir . $examplesDir . '/' . $example['location'];
+                    }
+                    foreach ($locationsToCheck as $locationToCheck) {
+                        if (is_file($locationToCheck)) {
+                            $validExamples[] = [
+                                'location' => $locationToCheck,
+                                'description' => $example['description']
+                            ];
+                        }
+                    }
+                }
+            }
+            if (!empty($validExamples)) {
+                $output .= '## Examples' . "\n\n";
+                foreach ($validExamples as $validExampleIndex => $validExample) {
+                    $output .= "**Example #" . ($validExampleIndex + 1) . (strlen($validExample['description']) > 0 ? ' ' . $validExample['description'] : '') . "**\n\n";
+                    $output .= "```php\n" . file_get_contents($validExample['location']) . "\n```\n\n";
+                    $output .= "Location: " . substr($validExample['location'], strlen($this->projectDir)) . "\n\n";
+                }
+            }
+            return $output;
+        };
+
+        $getSeeOutput = function($sees) {
+            $output = '';
+            $validSees = [];
+            if (!empty($sees)) {
+                foreach ($sees as $see) {
+                    $seeLocation = $see['location'];
+                    $seeDescription = $see['description'];
+                    $seeClass = null;
+                    $seeMethod = null;
+                    $seeProperty = null;
+                    $matches = null;
+                    if (preg_match('/^(.*?)\:\:(.*?)\(\)$/', $seeLocation, $matches) === 1) { // class::method()
+                        $seeClass = $matches[1];
+                        $seeMethod = $matches[2];
+                    } elseif (preg_match('/^(.*?)\:\:\$(.*?)$/', $seeLocation, $matches) === 1) { // class::$property
+                        $seeClass = $matches[1];
+                        $seeProperty = $matches[2];
+                    } elseif (preg_match('/^(.*?)\:\:(.*?)$/', $seeLocation, $matches) === 1) { // class::method
+                        $seeClass = $matches[1];
+                        $seeMethod = $matches[2];
+                    } else {
+                        $seeClass = $seeLocation;
+                    }
+                    $seeClassData = ClassParser::parse($seeClass);
+                    if ($seeClassData !== null) {
+                        if ($seeMethod !== null) {
+                            foreach ($seeClassData['methods'] as $seeClassDataMethod) {
+                                if ($seeClassDataMethod['name'] === $seeMethod) {
+                                    $validSees[] = [$seeClassData['name'] . '::' . $seeMethod . '()', $this->getMethodOutputFilename($seeClassData['name'], $seeMethod), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataMethod['description'])];
+                                    break;
+                                }
+                            }
+                        } elseif ($seeProperty !== null) {
+                            foreach ($seeClassData['properties'] as $seeClassDataProperty) {
+                                if ($seeClassDataProperty['name'] === $seeProperty) {
+                                    $validSees[] = [$seeClassData['name'] . '::$' . $seeProperty, $this->getClassOutputFilename($seeClassData['name']), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataProperty['description'])];
+                                    break;
+                                }
+                            }
+                        } else {
+                            $validSees[] = [$seeClassData['name'], $this->getClassOutputFilename($seeClassData['name']), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassData['description'])];
+                        }
+                    }
+                }
+                if (!empty($validSees)) {
+                    $output .= '## See also' . "\n\n";
+                    foreach ($validSees as $validSee) {
+                        $output .= "[" . $validSee[0] . "](" . $validSee[1] . ")" . (strlen($validSee[2]) > 0 ? ' - ' . $validSee[2] : '') . "\n\n";
+                    }
+                }
+            }
+            return $output;
         };
 
         $temp = [];
@@ -272,9 +369,12 @@ class DocsGenerator
                         }
                     }
 
+                    $methodOutput .= $getExamplesOutput($methodData['examples']);
+                    $methodOutput .= $getSeeOutput($methodData['see']);
+
                     $methodOutput .= '## Details' . "\n\n";
                     $methodOutput .= "Class: [" . $className . "](" . $this->getClassOutputFilename($className) . ")\n\n";
-                    $methodOutput .= "File: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
+                    $methodOutput .= "Location: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
                     $methodOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
 
                     $writeFile($this->getMethodOutputFilename($className, $methodData['name']), $methodOutput);
@@ -308,8 +408,11 @@ class DocsGenerator
                 }
             }
 
+            $classOutput .= $getExamplesOutput($classData['examples']);
+            $classOutput .= $getSeeOutput($classData['see']);
+
             $classOutput .= '## Details' . "\n\n";
-            $classOutput .= "File: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
+            $classOutput .= "Location: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
             $classOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
 
             $writeFile($this->getClassOutputFilename($className), $classOutput);

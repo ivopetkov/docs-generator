@@ -138,6 +138,7 @@ class ClassParser
                         'description' => $description,
                     ];
                 }
+
                 $result['methods'][] = [
                     'name' => $method->name,
                     'class' => $method->class,
@@ -152,6 +153,8 @@ class ClassParser
                     'isDestructor' => $method->isDestructor(),
                     'description' => isset($methodComments['description']) ? $methodComments['description'] : '',
                     'return' => isset($methodComments['return']) ? $methodComments['return'] : '',
+                    'examples' => isset($methodComments['examples']) ? $methodComments['examples'] : [],
+                    'see' => isset($methodComments['see']) ? $methodComments['see'] : [],
                 ];
             }
 
@@ -165,6 +168,9 @@ class ClassParser
                     'description' => $eventComments['description']
                 ];
             }
+
+            $result['examples'] = isset($classComments['examples']) ? $classComments['examples'] : [];
+            $result['see'] = isset($classComments['see']) ? $classComments['see'] : [];
 
             self::$cache[$class] = $result;
         }
@@ -198,6 +204,8 @@ class ClassParser
         $result['properties'] = [];
         $result['events'] = [];
         $result['internal'] = false;
+        $result['examples'] = [];
+        $result['see'] = [];
 
         foreach ($lines as $i => $line) {
             if ($line[0] === '@') {
@@ -249,6 +257,18 @@ class ClassParser
                         'type' => isset($valueParts[0]) ? self::updateType(trim($valueParts[0])) : null,
                         'description' => isset($valueParts[2]) ? trim($valueParts[2]) : null,
                         'readonly' => $tag === '@property-read'
+                    ];
+                } elseif ($tag === '@example') {
+                    $valueParts = explode(' ', $value, 2);
+                    $result['examples'][] = [
+                        'location' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
+                        'description' => isset($valueParts[1]) ? trim($valueParts[1]) : null
+                    ];
+                } elseif ($tag === '@see') {
+                    $valueParts = explode(' ', $value, 2);
+                    $result['see'][] = [
+                        'location' => isset($valueParts[0]) ? trim($valueParts[0]) : null,
+                        'description' => isset($valueParts[1]) ? trim($valueParts[1]) : null
                     ];
                 } elseif ($tag === '@internal') {
                     $result['internal'] = true;
