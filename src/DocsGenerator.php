@@ -33,6 +33,12 @@ class DocsGenerator
      *
      * @var array 
      */
+    private $sourceDirsClasses = [];
+
+    /**
+     *
+     * @var array 
+     */
     private $examplesDirs = [];
 
     /**
@@ -66,9 +72,19 @@ class DocsGenerator
         $this->examplesDirs[] = $dir;
     }
 
-    public function generateMarkdown(string $outputDir)
+    public function generateMarkdown(string $outputDir, array $options = [])
     {
-        $this->generate($outputDir, 'markdown');
+        $this->generate($outputDir, 'md', $options);
+    }
+
+//    public function generateJSON(string $outputDir, array $options = [])
+//    {
+//        $this->generate($outputDir, 'json', $options);
+//    }
+
+    public function generateHTML(string $outputDir, array $options = [])
+    {
+        $this->generate($outputDir, 'html', $options);
     }
 
     private function isInSourcesDirs(string $filename)
@@ -76,45 +92,166 @@ class DocsGenerator
         foreach ($this->sourceDirs as $sourceDir) {
             if (strpos(str_replace('\\', '/', $filename), $this->projectDir . $sourceDir . '/') === 0) {
                 return true;
-                break;
             }
         }
         return false;
     }
 
-    private function generate(string $outputDir, string $type)
+    private function prepareClasses()
+    {
+        $classNames = [];
+        foreach ($this->sourceDirs as $sourceDir) {
+            if (!isset($this->sourceDirsClasses[$sourceDir])) {
+                $sourceDirClassNames = [];
+                $files = $this->getFiles($this->projectDir . $sourceDir);
+                foreach ($files as $file) {
+                    $content = file_get_contents($file);
+                    if (preg_match('/class [a-zA-Z]*/', $content) === 1 || preg_match('/interface [a-zA-Z]*/', $content) === 1) {
+                        $declaredClasses = get_declared_classes();
+                        $declaredInterfaces = get_declared_interfaces();
+                        require_once $file;
+                        $newClasses = array_values(array_diff(get_declared_classes(), $declaredClasses));
+                        $newInterfaces = array_values(array_diff(get_declared_interfaces(), $declaredInterfaces));
+                        $newClasses = array_merge($newClasses, $newInterfaces);
+                        foreach ($newClasses as $newClassName) {
+                            if (strpos($newClassName, 'class@anonymous') === 0) {
+                                continue;
+                            }
+                            $sourceDirClassNames[$newClassName] = str_replace($this->projectDir, '', str_replace('\\', '/', $file));
+                        }
+                    }
+                }
+                $this->sourceDirsClasses[$sourceDir] = $sourceDirClassNames;
+            }
+            $classNames = array_merge($classNames, $this->sourceDirsClasses[$sourceDir]);
+        }
+        ksort($classNames);
+        return $classNames;
+    }
+
+    private function generate(string $outputDir, string $outputType, array $options = [])
     {
         if (!is_dir($outputDir)) {
             mkdir($outputDir, 0777, true);
         }
         $outputDir = rtrim($outputDir, '\/');
-        $classNames = [];
-        foreach ($this->sourceDirs as $i => $sourceDir) {
-            $files = $this->getFiles($this->projectDir . $sourceDir);
-            foreach ($files as $file) {
-                $content = file_get_contents($file);
-                if (preg_match('/class [a-zA-Z]*/', $content)) {
-                    $declaredClasses = get_declared_classes();
-                    require_once $file;
-                    $newClasses = array_values(array_diff(get_declared_classes(), $declaredClasses));
-                    foreach ($newClasses as $newClassName) {
-                        if (strpos($newClassName, 'class@anonymous') === 0) {
-                            continue;
-                        }
-                        $classNames[$newClassName] = str_replace($this->projectDir, '', str_replace('\\', '/', $file));
-                    }
-                }
-            }
-        }
 
-        ksort($classNames);
+        $showPrivate = isset($options['showPrivate']) ? (int) $options['showPrivate'] : false;
+        $showProtected = isset($options['showProtected']) ? (int) $options['showProtected'] : false;
+
+        $classNames = $this->prepareClasses();
 
         $writeFile = function(string $filename, string $content) use ($outputDir) {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filename, $content);
         };
 
-        $getExamplesOutput = function($examples) {
+        $getType = function($type, bool $richOutput = true) use ($outputType) {
+            if (!$richOutput) {
+                return $type;
+            }
+            $update = function($type) use ($outputType) {
+                $parts = explode('|', $type);
+                foreach ($parts as $i => $part) {
+                    if ($part !== 'void' && $part !== 'string' && $part !== 'int' && $part !== 'bool' && $part !== 'array') {
+                        $class = $part;
+                        if (substr($class, -2) === '[]') {
+                            $class = substr($class, 0, -2);
+                        }
+                        $classData = ClassParser::parse($class);
+                        if (is_array($classData)) {
+                            if (strlen($classData['extension']) > 0) {
+                                $url = 'http://php.net/manual/en/class.' . strtolower($class) . '.php';
+                            } else {
+                                if (array_search('internal', $classData['keywords']) !== false) {
+                                    continue;
+                                }
+                                if (!$this->isInSourcesDirs($classData['filename'])) {
+                                    continue;
+                                }
+                                $url = $this->getClassOutputFilename($class, $outputType);
+                            }
+                            if ($outputType === 'md') {
+                                $part = '[' . $part . '](' . $url . ')';
+                            } else {
+                                $part = '<a href="' . $url . '">' . $part . '</a>';
+                            }
+                        }
+                    }
+                    $parts[$i] = $part;
+                }
+                return implode('|', $parts);
+            };
+            if (is_array($type)) {
+                foreach ($type as $i => $_type) {
+                    $type[$i] = $update($_type);
+                }
+                return $type;
+            }
+            return $update($type);
+        };
+
+        $filterMethods = function(array $methods) use ($showPrivate, $showProtected) {
+            return array_filter($methods, function($methodData) use ($showPrivate, $showProtected) {
+                if (substr($methodData['name'], 0, 2) === '__' && $methodData['name'] !== '__construct') {
+                    return false;
+                }
+                if (!$showPrivate && array_search('private', $methodData['keywords']) !== false) {
+                    return false;
+                }
+                if (!$showProtected && array_search('protected', $methodData['keywords']) !== false) {
+                    return false;
+                }
+                return true;
+            });
+        };
+
+        $filterProperties = function(array $properties)use ($showPrivate, $showProtected) {
+            return array_filter($properties, function($propertyData)use ($showPrivate, $showProtected) {
+                if (!$showPrivate && array_search('private', $propertyData['keywords']) !== false) {
+                    return false;
+                }
+                if (!$showProtected && array_search('protected', $propertyData['keywords']) !== false) {
+                    return false;
+                }
+                return true;
+            });
+        };
+
+        $getOutputListItem = function($name, $description, $htmlClassPrefix = null) use ($outputType) {
+            $output = '';
+            if ($outputType === 'md') {
+                $output = '##### ' . $name . "\n\n";
+                if (!empty($description)) {
+                    $output .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' . $description . "\n\n";
+                }
+            } else {
+                $output = '<div class="' . $htmlClassPrefix . '">';
+                $output .= '<div class="' . $htmlClassPrefix . '-name">' . $name . '</div>';
+                if (!empty($description)) {
+                    $output .= '<div class="' . $htmlClassPrefix . '-description">' . $description . '</div>';
+                }
+                $output .= '</div>';
+            }
+            return $output;
+        };
+
+        $getOutputList = function($content, $title, $htmlClassPrefix, $level = 0) use ($outputType) {
+            $output = '';
+            if (!empty($content)) {
+                if ($outputType === 'md') {
+                    $output .= str_repeat('#', $level) . '## ' . $title . "\n\n" . $content;
+                } else {
+                    $output .= '<div class="' . $htmlClassPrefix . '">';
+                    $output .= '<div class="' . $htmlClassPrefix . '-title">' . $title . '</div>';
+                    $output .= '<div class="' . $htmlClassPrefix . '-content">' . $content . '</div>';
+                    $output .= '</div>';
+                }
+            }
+            return $output;
+        };
+
+        $getExamplesOutput = function($examples, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList) {
             $output = '';
             $validExamples = [];
             if (!empty($examples)) {
@@ -134,17 +271,30 @@ class DocsGenerator
                 }
             }
             if (!empty($validExamples)) {
-                $output .= '## Examples' . "\n\n";
+                $content = '';
                 foreach ($validExamples as $validExampleIndex => $validExample) {
-                    $output .= "**Example #" . ($validExampleIndex + 1) . (strlen($validExample['description']) > 0 ? ' ' . $validExample['description'] : '') . "**\n\n";
-                    $output .= "```php\n" . file_get_contents($validExample['location']) . "\n```\n\n";
-                    $output .= "Location: " . substr($validExample['location'], strlen($this->projectDir)) . "\n\n";
+                    $exampleTitle = 'Example #' . ($validExampleIndex + 1) . (strlen($validExample['description']) > 0 ? ' ' . $validExample['description'] : '');
+                    $exampleContent = file_get_contents($validExample['location']);
+                    $exampleLocation = substr($validExample['location'], strlen($this->projectDir));
+                    if ($outputType === 'md') {
+                        $content .= '**' . $exampleTitle . '**' . "\n\n";
+                        $content .= '```php' . "\n" . $exampleContent . "\n" . '```' . "\n\n";
+                        $content .= 'Location: ~' . $exampleLocation . "\n\n";
+                    } else {
+                        $content .= '<div class="' . $htmlClassPrefix . '">';
+                        $content .= '<div class="' . $htmlClassPrefix . '-title">' . $exampleTitle . '</div>';
+                        $content .= '<div class="' . $htmlClassPrefix . '-content">' . $exampleContent . '</div>';
+                        $content .= '<div class="' . $htmlClassPrefix . '-location">Location: ~' . $exampleLocation . '</div>';
+                        $content .= '</div>';
+                    }
                 }
+                $output .= $getOutputList($content, 'Examples', $htmlContainerPrefix);
             }
+
             return $output;
         };
 
-        $getSeeOutput = function($sees) {
+        $getSeeOutput = function($sees, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList, $getOutputListItem) {
             $output = '';
             $validSees = [];
             if (!empty($sees)) {
@@ -172,36 +322,187 @@ class DocsGenerator
                         if ($seeMethod !== null) {
                             foreach ($seeClassData['methods'] as $seeClassDataMethod) {
                                 if ($seeClassDataMethod['name'] === $seeMethod) {
-                                    $validSees[] = [$seeClassData['name'] . '::' . $seeMethod . '()', $this->getMethodOutputFilename($seeClassData['name'], $seeMethod), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataMethod['description'])];
+                                    $validSees[] = [$seeClassData['name'] . '::' . $seeMethod . '()', $this->getMethodOutputFilename($seeClassData['name'], $seeMethod, $outputType), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataMethod['description'])];
                                     break;
                                 }
                             }
                         } elseif ($seeProperty !== null) {
                             foreach ($seeClassData['properties'] as $seeClassDataProperty) {
                                 if ($seeClassDataProperty['name'] === $seeProperty) {
-                                    $validSees[] = [$seeClassData['name'] . '::$' . $seeProperty, $this->getClassOutputFilename($seeClassData['name']), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataProperty['description'])];
+                                    $validSees[] = [$seeClassData['name'] . '::$' . $seeProperty, $this->getClassOutputFilename($seeClassData['name'], $outputType), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassDataProperty['description'])];
                                     break;
                                 }
                             }
                         } else {
-                            $validSees[] = [$seeClassData['name'], $this->getClassOutputFilename($seeClassData['name']), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassData['description'])];
+                            $validSees[] = [$seeClassData['name'], $this->getClassOutputFilename($seeClassData['name'], $outputType), (strlen($seeDescription) > 0 ? $seeDescription : $seeClassData['description'])];
                         }
                     }
                 }
                 if (!empty($validSees)) {
-                    $output .= '## See also' . "\n\n";
+                    $content = '';
                     foreach ($validSees as $validSee) {
-                        $output .= "[" . $validSee[0] . "](" . $validSee[1] . ")" . (strlen($validSee[2]) > 0 ? ' - ' . $validSee[2] : '') . "\n\n";
+                        if ($outputType === 'md') {
+                            $content .= $getOutputListItem('[' . $validSee[0] . '](' . $validSee[1] . ')', $validSee[2]);
+                        } else {
+                            $content .= $getOutputListItem('<a href="' . $validSee[1] . '">' . $validSee[0] . '</a>', $validSee[2], $htmlClassPrefix);
+                        }
                     }
+                    $output .= $getOutputList($content, 'See also', $htmlContainerPrefix);
                 }
             }
             return $output;
         };
 
+        $getConstantSynopsis = function(array $constantData, bool $richOutput = true) use ($getType) {
+            return 'const ' . $getType((string) $constantData['type'], $richOutput) . ' ' . $constantData['name'];
+        };
+
+        $getPropertySynopsis = function(array $propertyData, bool $richOutput = true) use ($getType) {
+            return implode(' ', $propertyData['keywords']) . ' ' . $getType((string) $propertyData['type'], $richOutput) . ' $' . $propertyData['name'];
+        };
+
+        $getEventSynopsis = function(array $eventData, bool $richOutput = true) use ($getType) {
+            return $getType($eventData['type'], $richOutput) . ' ' . $eventData['name'];
+        };
+
+        $getMethodSynopsis = function(array $methodData, bool $richOutput = true) use ($getType, $outputType): string {
+            $result = '';
+            $keywords = [];
+            if (array_search('abstract', $methodData['keywords']) !== false) {
+                $keywords[] = 'abstract';
+            }
+            if (array_search('public', $methodData['keywords']) !== false) {
+                $keywords[] = 'public';
+            }
+            if (array_search('protected', $methodData['keywords']) !== false) {
+                $keywords[] = 'protected';
+            }
+            if (array_search('private', $methodData['keywords']) !== false) {
+                $keywords[] = 'private';
+            }
+            if (array_search('static', $methodData['keywords']) !== false) {
+                $keywords[] = 'static';
+            }
+            if (array_search('final', $methodData['keywords']) !== false) {
+                $keywords[] = 'final';
+            }
+
+            $classData = ClassParser::parse($methodData['class']);
+
+            if (empty($methodData['parameters'])) {
+                $parameters = 'void';
+            } else {
+                $updateValue = function($value) {
+                    if (is_string($value)) {
+                        return '\'' . str_replace('\'', '\\\'', $value) . '\'';
+                    }
+                    return json_encode($value);
+                };
+                $parameters = '';
+                $bracketsToAddInTheEnd = 0;
+                foreach ($methodData['parameters'] as $parameter) {
+                    if (array_search('optional', $parameter['keywords']) !== false) {
+                        $parameters .= ' [, ';
+                        $bracketsToAddInTheEnd++;
+                    } else {
+                        $parameters .= ' , ';
+                    }
+                    $parameters .= ($richOutput ? $getType($parameter['type']) : $parameter['type']) . ' $' . $parameter['name'] . ($parameter['value'] !== null ? ' = ' . $updateValue($parameter['value']) : '');
+                }
+                if ($bracketsToAddInTheEnd > 0) {
+                    $parameters .= ' ' . str_repeat(']', $bracketsToAddInTheEnd) . ' ';
+                }
+                $parameters = trim($parameters, ' ,');
+                if (substr($parameters, 0, 2) === '[,') {
+                    $parameters = '[' . substr($parameters, 2);
+                }
+            }
+            $name = $methodData['name'];
+            $url = null;
+            if (strlen($classData['extension']) > 0) {
+                $url = 'http://php.net/manual/en/' . strtolower($methodData['class'] . '.' . ltrim($name, '_')) . '.php';
+            } else {
+                if ($this->isInSourcesDirs($classData['filename'])) {
+                    $url = $this->getMethodOutputFilename($methodData['class'], $name, $outputType);
+                }
+            }
+
+            $result .= implode(' ', $keywords);
+            $result .= (array_search('constructor', $methodData['keywords']) !== false || array_search('destructor', $methodData['keywords']) !== false ? '' : ' ' . ($richOutput ? $getType($methodData['return']['type']) : $methodData['return']['type']));
+            if ($outputType === 'md') {
+                if ($url !== null) {
+                    $result .= ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name);
+                } else {
+                    $result .= ' ' . $name;
+                }
+            } else {
+                if ($url !== null) {
+                    $result .= ' ' . ($richOutput ? '<a href="' . $url . '">' . $name . '</a>' : $name);
+                } else {
+                    $result .= ' ' . $name;
+                }
+            }
+            $result .= ' ( ' . $parameters . ' )';
+            return $result;
+        };
+
+        $getClassSynopsis = function(array $classData, bool $richOutput = true) use ($filterProperties, $filterMethods, $getConstantSynopsis, $getPropertySynopsis, $getMethodSynopsis, $getType): string {
+            $className = $classData['name'];
+            $result = $className;
+
+            if (!empty($classData['extends'])) {
+                $result .= ' extends ' . $getType($classData['extends'], $richOutput);
+            }
+
+            if (!empty($classData['implements'])) {
+                $result .= ' implements ' . implode(', ', $getType($classData['implements'], $richOutput));
+            }
+
+            $result .= ' {' . "\n\n";
+
+            // CONSTANTS
+            $constantsResult = '';
+            foreach ($classData['constants'] as $constantData) {
+                if ($constantData['class'] === $className) {
+                    $constantsResult .= "\t" . $getConstantSynopsis($constantData, $richOutput) . "\n";
+                }
+            }
+            if ($constantsResult !== '') {
+                $result .= "\t" . '/* Constants */' . "\n" . $constantsResult . "\n";
+            }
+
+            // PROPERTIES
+            $properties = $filterProperties($classData['properties']);
+            $propertiesResult = '';
+            foreach ($properties as $propertyData) {
+                if ($propertyData['class'] === $className) {
+                    $propertiesResult .= "\t" . $getPropertySynopsis($propertyData, $richOutput) . "\n";
+                }
+            }
+            if ($propertiesResult !== '') {
+                $result .= "\t" . '/* Properties */' . "\n" . $propertiesResult . "\n";
+            }
+
+            // METHODS
+            $methods = $filterMethods($classData['methods']);
+            $methodsResult = '';
+            foreach ($methods as $methodData) {
+                if ($methodData['class'] === $className) {
+                    $methodsResult .= "\t" . $getMethodSynopsis($methodData, $richOutput) . "\n";
+                }
+            }
+            if ($methodsResult !== '') {
+                $result .= "\t" . '/* Methods */' . "\n" . $methodsResult . "\n";
+            }
+
+            $result .= '}';
+            return $result;
+        };
+
         $temp = [];
         foreach ($classNames as $className => $classSourceFile) {
             $classData = ClassParser::parse($className);
-            if ($classData['internal']) {
+            if (array_search('internal', $classData['keywords']) !== false) {
                 continue;
             }
             if (!$this->isInSourcesDirs($classData['filename'])) {
@@ -211,77 +512,86 @@ class DocsGenerator
         }
         $classNames = $temp;
 
-        $indexOutput = '';
-        $indexOutput .= '## Classes' . "\n\n";
-        foreach ($classNames as $className => $classSourceFile) {
-            $classData = ClassParser::parse($className);
+        if ($outputType === 'json') {
+            $indexData = [
+                'classes' => []
+            ];
+            foreach ($classNames as $className => $classSourceFile) {
+                $classData = ClassParser::parse($className);
+                $classOutput = json_encode($classData, JSON_PRETTY_PRINT);
+                $writeFile($this->getClassOutputFilename($className, 'json'), $classOutput);
+                $indexData['classes'][] = [
+                    'name' => $className,
+                    'file' => $this->getClassOutputFilename($className, 'json'),
+                    'description' => $classData['description'],
+                ];
+            }
+            $writeFile('index.json', json_encode($indexData, JSON_PRETTY_PRINT));
+        } elseif ($outputType === 'md' || $outputType === 'html') {
+            $indexOutput = '';
 
-            $classOutput = '';
-
-            $classOutput .= '# ' . $className . "\n\n";
-
-            if (!empty($classData['extends'])) {
-                $classOutput .= "extends " . $this->getType((string) $classData['extends']) . "\n\n";
+            if ($outputType === 'md') {
+                $indexOutput .= '## Classes' . "\n\n";
+            } else {
+                $indexOutput .= '<div class="page-index-classes">';
+                $indexOutput .= '<div class="page-index-classes-title">Classes</div>';
             }
 
-            if (!empty($classData['implements'])) {
-                $implements = array_map(function($value) {
-                    return $this->getType((string) $value);
-                }, $classData['implements']);
-                $classOutput .= "implements " . implode(', ', $implements) . "\n\n";
-            }
+            foreach ($classNames as $className => $classSourceFile) {
+                $classData = ClassParser::parse($className);
 
-            if (!empty($classData['description'])) {
-                $classOutput .= $classData['description'] . "\n\n";
-            }
+                $classOutput = '';
+                if ($outputType === 'md') {
+                    $classOutput .= '# ' . $className . "\n\n";
+                } else {
+                    $classOutput .= '<div class="page-class-name">' . $className . "</div>";
+                }
 
-            if (!empty($classData['constants'])) {
-                usort($classData['constants'], function($data1, $data2) {
-                    return strcmp($data1['name'], $data2['name']);
-                });
+                if (!empty($classData['description'])) {
+                    if ($outputType === 'md') {
+                        $classOutput .= $classData['description'] . "\n\n";
+                    } else {
+                        $classOutput .= '<div class="page-class-description">' . $classData['description'] . '</div>';
+                    }
+                }
+
+                if ($outputType === 'md') {
+                    $classOutput .= "```php\n" . $getClassSynopsis($classData, false) . "\n```\n\n";
+                } else {
+                    $classOutput .= '<div class="page-class-synopsis">' . $getClassSynopsis($classData, false) . '</div>';
+                }
+
+                // EXTENDS
+                $extendsOutput = '';
+                if (strlen($classData['extends']) > 0) {
+                    $extendClass = ClassParser::parse($classData['extends']);
+                    $extendsOutput .= $getOutputListItem($getType($classData['extends']), $extendClass['description'], 'page-class-extends-class');
+                }
+                $classOutput .= $getOutputList($extendsOutput, 'Extends', 'page-class-extends');
+
+                // IMPLEMENTS
+                $implementsOutput = '';
+                foreach ($classData['implements'] as $implements) {
+                    $implementClass = ClassParser::parse($implements);
+                    $implementsOutput .= $getOutputListItem($getType($implements), $implementClass['description'], 'page-class-implements-interface');
+                }
+                $classOutput .= $getOutputList($implementsOutput, 'Implements', 'page-class-implements');
+
+                // CONSTANTS
                 $constantsOutput = '';
                 foreach ($classData['constants'] as $constantData) {
-                    if ($constantData['class'] !== $className) {
-                        $constantsOutput .= "##### const " . $this->getType((string) $constantData['type']) . ' ' . $constantData['name'] . "\n\n";
-                        if (!empty($constantData['description'])) {
-                            $constantsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $constantData['description'] . "\n\n";
-                        }
+                    if ($constantData['class'] === $className) {
+                        $constantsOutput .= $getOutputListItem($getConstantSynopsis($constantData), $constantData['description'], 'page-class-constant');
                     }
                 }
-                if (!empty($constantsOutput)) {
-                    $classOutput .= '## Constants' . "\n\n";
-                    $classOutput .= $constantsOutput;
-                }
-            }
+                $classOutput .= $getOutputList($constantsOutput, 'Constants', 'page-class-constants');
 
-            if (!empty($classData['properties'])) {
-                usort($classData['properties'], function($data1, $data2) {
-                    return strcmp($data1['name'], $data2['name']);
-                });
+                // PROPERTIES
+                $properties = $filterProperties($classData['properties']);
                 $propertiesOutput = '';
                 $inheritedProperties = [];
-                foreach ($classData['properties'] as $propertyData) {
-                    if ($propertyData['isPrivate']) {
-                        continue;
-                    }
-                    $keywords = [];
-                    if ($propertyData['isPublic']) {
-                        $keywords[0] = 'public';
-                    }
-                    if ($propertyData['isProtected']) {
-                        $keywords[1] = 'protected';
-                    }
-                    if ($propertyData['isPrivate']) {
-                        $keywords[2] = 'private';
-                    }
-                    if ($propertyData['isStatic']) {
-                        $keywords[3] = 'static';
-                    }
-                    if ($propertyData['isReadOnly']) {
-                        $keywords[4] = 'readonly';
-                    }
-                    ksort($keywords);
-                    $propertyOutput = "##### " . implode(' ', $keywords) . ' ' . $this->getType((string) $propertyData['type']) . ' $' . $propertyData['name'] . "\n\n";
+                foreach ($properties as $propertyData) {
+                    $propertyOutput = $getOutputListItem($getPropertySynopsis($propertyData), $propertyData['description'], 'page-class-property');
                     if ($propertyData['class'] !== $className) {
                         if (!isset($inheritedProperties[$propertyData['class']])) {
                             $inheritedProperties[$propertyData['class']] = [];
@@ -290,273 +600,183 @@ class DocsGenerator
                         continue;
                     }
                     $propertiesOutput .= $propertyOutput;
-                    if (!empty($propertyData['description'])) {
-                        $propertiesOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $propertyData['description'] . "\n\n";
-                    }
                 }
                 ksort($inheritedProperties);
                 foreach ($inheritedProperties as $inheritedClassName => $inheritedPropertiesOutput) {
-                    $propertiesOutput .= '### Inherited from ' . $this->getType($inheritedClassName) . ":\n\n";
-                    $propertiesOutput .= implode('', $inheritedPropertiesOutput);
+                    $propertiesOutput .= $getOutputList(implode('', $inheritedPropertiesOutput), 'Inherited from ' . $getType($inheritedClassName), 'page-class-inherited-properties', 1);
                 }
-                if (!empty($propertiesOutput)) {
-                    $classOutput .= '## Properties' . "\n\n";
-                    $classOutput .= $propertiesOutput;
-                }
-            }
+                $classOutput .= $getOutputList($propertiesOutput, 'Properties', 'page-class-properties');
 
-            if (!empty($classData['methods'])) {
-                usort($classData['methods'], function($data1, $data2) {
-                    if ((int) $data1['isPublic'] . (int) $data1['isProtected'] . (int) $data1['isPrivate'] !== (int) $data2['isPublic'] . (int) $data2['isProtected'] . (int) $data2['isPrivate']) {
-                        if ($data1['isPublic']) {
-                            return -1;
-                        }
-                        if ($data1['isPrivate']) {
-                            return 1;
-                        }
-                        return 1;
-                    }
-                    return strcmp($data1['name'], $data2['name']);
-                });
+                // METHODS
+                $methods = $filterMethods($classData['methods']);
                 $methodsOutput = '';
                 $inheritedMethods = [];
-                foreach ($classData['methods'] as $methodData) {
-                    if ($methodData['isPrivate'] || (substr($methodData['name'], 0, 2) === '__' && $methodData['name'] !== '__construct')) {
-                        continue;
-                    }
+                foreach ($methods as $methodData) {
+                    $methodOutput = $getOutputListItem($getMethodSynopsis($methodData), $methodData['description'], 'page-class-method');
                     if ($methodData['class'] !== $className) {
                         if (!isset($inheritedMethods[$methodData['class']])) {
                             $inheritedMethods[$methodData['class']] = [];
                         }
-                        $richOutput = true;
-                        $methodClassData = ClassParser::parse($methodData['class']);
-                        if (!$this->isInSourcesDirs($methodClassData['filename'])) {
-                            $richOutput = false;
-                        }
-                        $inheritedMethods[$methodData['class']][] = "##### " . $this->getMethod($methodData) . "\n\n";
+                        $inheritedMethods[$methodData['class']][] = $methodOutput;
                         continue;
                     }
-                    $methodsOutput .= "##### " . $this->getMethod($methodData) . "\n\n";
-                    if (!empty($methodData['description'])) {
-                        $methodsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $methodData['description'] . "\n\n";
-                    }
-                    $returnDescription = is_array($methodData['return']) ? $methodData['return']['description'] : '';
-                    if (!empty($returnDescription) && $methodData['return']['type'] !== 'void') {
-                        $methodsOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Returns: ' . $returnDescription . "\n\n";
-                    }
-
-                    $methodOutput = '';
-                    $methodOutput .= '# ' . $methodData['class'] . '::' . $methodData['name'] . "\n\n";
-                    if (!empty($methodData['description'])) {
-                        $methodOutput .= $methodData['description'] . "\n\n";
-                    }
-                    $methodOutput .= "```php\n" . $this->getMethod($methodData, false) . "\n```\n\n";
-                    if (!empty($methodData['parameters'])) {
-                        $methodOutput .= '## Parameters' . "\n\n";
-                        foreach ($methodData['parameters'] as $i => $parameter) {
-                            $methodOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`$" . $parameter['name'] . "`\n\n";
-                            if (!empty($parameter['description'])) {
-                                $methodOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $parameter['description'] . "\n\n";
-                            }
-                        }
-                    }
-
-                    if ($methodData['name'] !== '__construct') {
-                        $returnDescription = is_array($methodData['return']) ? $methodData['return']['description'] : '';
-                        if (!empty($returnDescription)) {
-                            $methodOutput .= '## Returns' . "\n\n";
-                            $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' . $returnDescription . "\n\n";
-                        }
-                    }
-
-                    $methodOutput .= $getExamplesOutput($methodData['examples']);
-                    $methodOutput .= $getSeeOutput($methodData['see']);
-
-                    $methodOutput .= '## Details' . "\n\n";
-                    $methodOutput .= "Class: [" . $className . "](" . $this->getClassOutputFilename($className) . ")\n\n";
-                    $methodOutput .= "Location: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
-                    $methodOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
-
-                    $writeFile($this->getMethodOutputFilename($className, $methodData['name']), $methodOutput);
+                    $methodsOutput .= $methodOutput;
                 }
                 ksort($inheritedMethods);
                 foreach ($inheritedMethods as $inheritedClassName => $inheritedMethodsOutput) {
-                    $methodsOutput .= '### Inherited from ' . $this->getType($inheritedClassName) . ":\n\n";
-                    $methodsOutput .= implode('', $inheritedMethodsOutput);
+                    $methodsOutput .= $getOutputList(implode('', $inheritedMethodsOutput), 'Inherited from ' . $getType($inheritedClassName), 'page-class-inherited-methods', 1);
                 }
-                if (!empty($methodsOutput)) {
-                    $classOutput .= '## Methods' . "\n\n";
-                    $classOutput .= $methodsOutput;
-                }
-            }
+                $classOutput .= $getOutputList($methodsOutput, 'Methods', 'page-class-methods');
 
-            if (!empty($classData['events'])) {
-                usort($classData['events'], function($data1, $data2) {
-                    return strcmp($data1['name'], $data2['name']);
-                });
+                // EVENTS
                 $eventsOutput = '';
                 foreach ($classData['events'] as $eventData) {
-                    $eventsOutput .= "##### " . $eventData['name'] . "\n\n";
-                    $eventsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Type: " . $this->getType($eventData['type']) . "\n\n";
-                    if (!empty($eventData['description'])) {
-                        $eventsOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $eventData['description'] . "\n\n";
+                    $eventsOutput .= $getOutputListItem($getEventSynopsis($eventData), $eventData['description'], 'page-class-event');
+                }
+                $classOutput .= $getOutputList($eventsOutput, 'Events', 'page-class-events');
+
+                // EXAMPLES
+                $classOutput .= $getExamplesOutput($classData['examples'], 'page-class-examples', 'page-class-example');
+
+                // SEE
+                $classOutput .= $getSeeOutput($classData['see'], 'page-class-see-also', 'page-class-see');
+
+                $location = str_replace('\\', '/', $classSourceFile);
+                if ($outputType === 'md') {
+                    $classOutput .= '## Details' . "\n\n";
+                    $classOutput .= 'Location: ~' . $location . "\n\n";
+                    $classOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
+                } else {
+                    $classOutput .= '<div class="page-class-details">';
+                    $classOutput .= '<div class="page-class-details-title">Details</div>';
+                    $classOutput .= '<div class="page-class-details-location">Location: ~' . $location . '</div>';
+                    $classOutput .= '<div class="page-class-details-back-to-index"><a href="index.html">back to index</a></div>';
+                    $classOutput .= '</div>';
+                }
+
+                $writeFile($this->getClassOutputFilename($className, $outputType), $classOutput);
+
+                // METHODS PAGES
+                $methods = $filterMethods($classData['methods']);
+                foreach ($methods as $methodData) {
+                    if ($methodData['class'] === $className) {
+                        $methodOutput = '';
+                        $methodPageName = $methodData['class'] . '::' . $methodData['name'];
+                        if ($outputType === 'md') {
+                            $methodOutput .= '# ' . $methodPageName . "\n\n";
+                        } else {
+                            $methodOutput .= '<div class="page-method-name">' . $methodPageName . "</div>";
+                        }
+
+                        if (!empty($methodData['description'])) {
+                            if ($outputType === 'md') {
+                                $methodOutput .= $methodData['description'] . "\n\n";
+                            } else {
+                                $methodOutput .= '<div class="page-method-description">' . $methodData['description'] . '</div>';
+                            }
+                        }
+
+                        if ($outputType === 'md') {
+                            $methodOutput .= "```php\n" . $getMethodSynopsis($methodData, false) . "\n```\n\n";
+                        } else {
+                            $methodOutput .= '<div class="page-method-synopsis">' . $getMethodSynopsis($methodData, false) . '</div>';
+                        }
+
+                        // PARAMETERS
+                        $parametersOutput = '';
+                        foreach ($methodData['parameters'] as $parameterData) {
+                            $parametersOutput .= $getOutputListItem($parameterData['name'], $parameterData['description'], 'page-method-parameter');
+                        }
+                        $methodOutput .= $getOutputList($parametersOutput, 'Parameters', 'page-method-parameters');
+
+                        // RETURN
+                        if ($methodData['name'] !== '__construct') {
+                            if (!empty($methodData['return']['description'])) {
+                                $description = $methodData['return']['description'];
+                                if ($outputType === 'md') {
+                                    $methodOutput .= '## Returns' . "\n\n";
+                                    $methodOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' . $description . "\n\n";
+                                } else {
+                                    $methodOutput .= '<div class="page-method-returns">';
+                                    $methodOutput .= '<div class="page-method-returns-title">Returns</div>';
+                                    $methodOutput .= '<div class="page-method-returns-description">' . $description . '</div>';
+                                    $methodOutput .= '</div>';
+                                }
+                            }
+                        }
+
+                        // EXAMPLES
+                        $methodOutput .= $getExamplesOutput($methodData['examples'], 'page-method-examples', 'page-method-example');
+
+                        // SEE
+                        $methodOutput .= $getSeeOutput($methodData['see'], 'page-method-see-also', 'page-method-see');
+
+                        // DETAILS
+                        $location = str_replace('\\', '/', $classSourceFile);
+                        $classLocation = $this->getClassOutputFilename($className, $outputType);
+                        if ($outputType === 'md') {
+                            $methodOutput .= '## Details' . "\n\n";
+                            $methodOutput .= "Class: [" . $className . "](" . $classLocation . ")\n\n";
+                            $methodOutput .= 'Location: ~' . $location . "\n\n";
+                            $methodOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
+                        } else {
+                            $methodOutput .= '<div class="page-method-details">';
+                            $methodOutput .= '<div class="page-method-details-title">Details</div>';
+                            $methodOutput .= '<div class="page-method-details-class"><a href="' . $classLocation . '">' . $className . '</a></div>';
+                            $methodOutput .= '<div class="page-method-details-location">Location: ~' . $location . '</div>';
+                            $methodOutput .= '<div class="page-method-details-back-to-index"><a href="index.html">back to index</a></div>';
+                            $methodOutput .= '</div>';
+                        }
+
+                        $writeFile($this->getMethodOutputFilename($className, $methodData['name'], $outputType), $methodOutput);
                     }
                 }
-                if (!empty($eventsOutput)) {
-                    $classOutput .= '## Events' . "\n\n";
-                    $classOutput .= $eventsOutput;
+
+                // INDEX
+                if ($outputType === 'md') {
+                    $indexOutput .= '### [' . $className . '](' . $this->getClassOutputFilename($className, $outputType) . ')' . "\n\n";
+                    if (!empty($classData['description'])) {
+                        $indexOutput .= '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' . $classData['description'] . "\n\n";
+                    }
+                } else {
+                    $indexOutput .= '<div class="page-index-class">';
+                    $indexOutput .= '<div class="page-index-class-name"><a href="' . $this->getClassOutputFilename($className, $outputType) . '">' . $className . '</a></div>';
+                    if (!empty($classData['description'])) {
+                        $indexOutput .= '<div class="page-index-class-description">' . $classData['description'] . '</div>';
+                    }
+                    $indexOutput .= '</div>';
                 }
             }
 
-            $classOutput .= $getExamplesOutput($classData['examples']);
-            $classOutput .= $getSeeOutput($classData['see']);
-
-            $classOutput .= '## Details' . "\n\n";
-            $classOutput .= "Location: " . str_replace('\\', '/', $classSourceFile) . "\n\n";
-            $classOutput .= '---' . "\n\n" . '[back to index](index.md)' . "\n\n";
-
-            $writeFile($this->getClassOutputFilename($className), $classOutput);
-
-            $indexOutput .= '### [' . $className . '](' . $this->getClassOutputFilename($className) . ')' . "\n\n";
-            if (!empty($classData['description'])) {
-                $indexOutput .= "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" . $classData['description'] . "\n\n";
+            if ($outputType === 'html') {
+                $indexOutput .= '</div>'; //class="page-index-classes"
             }
-        }
 
-        $writeFile('index.md', $indexOutput);
+            $writeFile('index.' . $outputType, $indexOutput);
+        }
     }
 
     /**
      * 
      * @param string $class
      * @param string $method
+     * @param string $outputType
      * @return string
      */
-    private function getMethodOutputFilename(string $class, string $method): string
+    private function getMethodOutputFilename(string $class, string $method, string $outputType): string
     {
-        return str_replace('\\', '.', strtolower($class . '.' . $method)) . '.method.md';
+        return str_replace('\\', '.', strtolower($class . '.' . $method)) . '.method.' . $outputType;
     }
 
     /**
      * 
      * @param string $class
+     * @param string $outputType
      * @return string
      */
-    private function getClassOutputFilename(string $class): string
+    private function getClassOutputFilename(string $class, string $outputType): string
     {
-        return str_replace('\\', '.', strtolower($class)) . '.class.md';
-    }
-
-    /**
-     * 
-     * @param mixed $value
-     * @return string
-     */
-    private function getValue($value): string
-    {
-        if (is_string($value)) {
-            return '\'' . str_replace('\'', '\\\'', $value) . '\'';
-        }
-        return json_encode($value);
-    }
-
-    /**
-     * 
-     * @param string $type
-     * @param bool $richOutput
-     * @return string
-     */
-    private function getType(string $type, bool $richOutput = true): string
-    {
-        $parts = explode('|', $type);
-        foreach ($parts as $i => $part) {
-            $part = trim(trim($part), '\\');
-            if ($richOutput) {
-                if ($part !== 'void' && $part !== 'string' && $part !== 'int' && $part !== 'boolean' && $part !== 'array') {
-                    $class = $part;
-                    if (substr($class, -2) === '[]') {
-                        $class = substr($class, 0, -2);
-                    }
-                    $classData = ClassParser::parse($class);
-                    if (is_array($classData)) {
-                        if (strlen($classData['extension']) > 0) {
-                            $part = '[' . $part . '](http://php.net/manual/en/class.' . strtolower($class) . '.php)';
-                        } else {
-                            if ($classData['internal']) {
-                                continue;
-                            }
-                            if (!$this->isInSourcesDirs($classData['filename'])) {
-                                continue;
-                            }
-                            $part = '[' . $part . '](' . $this->getClassOutputFilename($class) . ')';
-                        }
-                    }
-                }
-            }
-            $parts[$i] = $part;
-        }
-        return implode('|', $parts);
-    }
-
-    /**
-     * 
-     * @param array $method
-     * @param bool $richOutput
-     * @return string
-     */
-    private function getMethod(array $method, bool $richOutput = true): string
-    {
-        $result = '';
-        $keywords = [];
-        if ($method['isPublic']) {
-            $keywords[0] = 'public';
-        }
-        if ($method['isProtected']) {
-            $keywords[1] = 'protected';
-        }
-        if ($method['isPrivate']) {
-            $keywords[2] = 'private';
-        }
-        if ($method['isStatic']) {
-            $keywords[3] = 'static';
-        }
-        if ($method['isAbstract']) {
-            $keywords[4] = 'abstract';
-        }
-        if ($method['isFinal']) {
-            $keywords[5] = 'final';
-        }
-        ksort($keywords);
-
-        $classData = ClassParser::parse($method['class']);
-
-        if (empty($method['parameters'])) {
-            $parameters = 'void';
-        } else {
-            $parameters = '';
-            $bracketsToAddInTheEnd = 0;
-            foreach ($method['parameters'] as $parameter) {
-                if ($parameter['isOptional']) {
-                    $parameters .= ' [, ';
-                    $bracketsToAddInTheEnd++;
-                } else {
-                    $parameters .= ' , ';
-                }
-                $parameters .= $this->getType((string) $parameter['type'], $richOutput) . ' $' . $parameter['name'] . ($parameter['value'] !== null ? ' = ' . $this->getValue($parameter['value']) : '');
-            }
-            if ($bracketsToAddInTheEnd > 0) {
-                $parameters .= ' ' . str_repeat(']', $bracketsToAddInTheEnd) . ' ';
-            }
-            $parameters = trim($parameters, ' ,');
-            if (substr($parameters, 0, 2) === '[,') {
-                $parameters = '[' . substr($parameters, 2);
-            }
-        }
-        $returnType = isset($method['return']['type']) ? (string) $method['return']['type'] : 'void';
-        $name = $method['name'];
-        $url = strlen($classData['extension']) > 0 ? 'http://php.net/manual/en/' . strtolower($method['class'] . '.' . $name) . '.php' : $this->getMethodOutputFilename($method['class'], $name);
-        $result .= implode(' ', $keywords) . ($method['isConstructor'] || $method['isDestructor'] ? '' : ' ' . $this->getType($returnType, $richOutput)) . ' ' . ($richOutput ? '[' . $name . '](' . $url . ')' : $name) . ' ( ' . $parameters . ' )' . "\n";
-        return trim($result);
+        return str_replace('\\', '.', strtolower($class)) . '.class.' . $outputType;
     }
 
     /**
