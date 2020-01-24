@@ -265,7 +265,7 @@ class ClassParser
         foreach ($lines as $line) {
             $line = trim($line, " *");
             $line = trim($line);
-            if (isset($line{0})) {
+            if (isset($line[0])) {
                 $temp[] = $line;
             }
         }
