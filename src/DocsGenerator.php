@@ -722,7 +722,7 @@ class DocsGenerator
                         } else {
                             $methodOutput .= '<div class="page-method-details">';
                             $methodOutput .= '<div class="page-method-details-title">Details</div>';
-                            $methodOutput .= '<div class="page-method-details-class"><a href="' . $classLocation . '">' . $className . '</a></div>';
+                            $methodOutput .= '<div class="page-method-details-class">Class: <a href="' . $classLocation . '">' . $className . '</a></div>';
                             $methodOutput .= '<div class="page-method-details-location">Location: ~' . $location . '</div>';
                             $methodOutput .= '<div class="page-method-details-back-to-index"><a href="index.html">back to index</a></div>';
                             $methodOutput .= '</div>';
