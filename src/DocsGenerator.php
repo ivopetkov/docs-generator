@@ -563,7 +563,7 @@ class DocsGenerator
 
                 // EXTENDS
                 $extendsOutput = '';
-                if (strlen($classData['extends']) > 0) {
+                if ($classData['extends'] !== null) {
                     $extendClass = ClassParser::parse($classData['extends']);
                     $extendsOutput .= $getOutputListItem($getType($classData['extends']), $extendClass['description'], 'page-class-extends-class');
                 }

@@ -24,7 +24,8 @@ class DocsGeneratorTest extends PHPUnit\Framework\TestCase
         if (!is_dir($tempDir)) {
             mkdir($tempDir, 0777, true);
         }
-        $docsGenerator = new DocsGenerator(__DIR__ . '/../', ['/src']);
+        $docsGenerator = new DocsGenerator(__DIR__ . '/../');
+        $docsGenerator->addSourceDir('src');
         $docsGenerator->generateMarkDown($tempDir);
         $this->assertTrue(is_file($tempDir . '/index.md'));
         $this->assertTrue(is_file($tempDir . '/ivopetkov.docsgenerator.classparser.class.md'));
