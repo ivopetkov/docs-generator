@@ -30,5 +30,4 @@ class DocsGeneratorTest extends PHPUnit\Framework\TestCase
         $this->assertTrue(is_file($tempDir . '/ivopetkov.docsgenerator.classparser.class.md'));
         $this->assertTrue(is_file($tempDir . '/ivopetkov.docsgenerator.classparser.parse.method.md'));
     }
-
 }

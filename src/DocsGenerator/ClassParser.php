@@ -80,7 +80,7 @@ class ClassParser
                     'description' => isset($constantComments['description']) ? $constantComments['description'] : '',
                 ];
             }
-            usort($result['constants'], function($constant1, $constant2) {
+            usort($result['constants'], function ($constant1, $constant2) {
                 return strcmp($constant1['name'], $constant2['name']);
             });
 
@@ -130,7 +130,7 @@ class ClassParser
                     ];
                 }
             }
-            usort($result['properties'], function($property1, $property2) {
+            usort($result['properties'], function ($property1, $property2) {
                 return strcmp($property1['name'], $property2['name']);
             });
 
@@ -211,7 +211,7 @@ class ClassParser
                     'see' => isset($methodComments['see']) ? $methodComments['see'] : [],
                 ];
             }
-            usort($result['methods'], function($method1, $method2) {
+            usort($result['methods'], function ($method1, $method2) {
                 $method1IsPublic = array_search('public', $method1['keywords']);
                 $method1IsProtected = array_search('protected', $method1['keywords']);
                 $method1IsPrivate = array_search('private', $method1['keywords']);
@@ -240,7 +240,7 @@ class ClassParser
                     'description' => $eventComments['description']
                 ];
             }
-            usort($result['events'], function($event1, $event2) {
+            usort($result['events'], function ($event1, $event2) {
                 return strcmp($event1['name'], $event2['name']);
             });
 
@@ -398,5 +398,4 @@ class ClassParser
             throw new \Exception('Unsupported type (' . gettype($type) . ')!');
         }
     }
-
 }

@@ -77,10 +77,10 @@ class DocsGenerator
         $this->generate($outputDir, 'md', $options);
     }
 
-//    public function generateJSON(string $outputDir, array $options = [])
-//    {
-//        $this->generate($outputDir, 'json', $options);
-//    }
+    //    public function generateJSON(string $outputDir, array $options = [])
+    //    {
+    //        $this->generate($outputDir, 'json', $options);
+    //    }
 
     public function generateHTML(string $outputDir, array $options = [])
     {
@@ -141,16 +141,16 @@ class DocsGenerator
 
         $classNames = $this->prepareClasses();
 
-        $writeFile = function(string $filename, string $content) use ($outputDir) {
+        $writeFile = function (string $filename, string $content) use ($outputDir) {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filename, $content);
         };
 
-        $getType = function($type, bool $richOutput = true) use ($outputType) {
+        $getType = function ($type, bool $richOutput = true) use ($outputType) {
             if (!$richOutput) {
                 return $type;
             }
-            $update = function($type) use ($outputType) {
+            $update = function ($type) use ($outputType) {
                 $parts = explode('|', $type);
                 foreach ($parts as $i => $part) {
                     if ($part !== 'void' && $part !== 'string' && $part !== 'int' && $part !== 'bool' && $part !== 'array') {
@@ -191,8 +191,8 @@ class DocsGenerator
             return $update($type);
         };
 
-        $filterMethods = function(array $methods) use ($showPrivate, $showProtected) {
-            return array_filter($methods, function($methodData) use ($showPrivate, $showProtected) {
+        $filterMethods = function (array $methods) use ($showPrivate, $showProtected) {
+            return array_filter($methods, function ($methodData) use ($showPrivate, $showProtected) {
                 if (substr($methodData['name'], 0, 2) === '__' && $methodData['name'] !== '__construct') {
                     return false;
                 }
@@ -206,8 +206,8 @@ class DocsGenerator
             });
         };
 
-        $filterProperties = function(array $properties)use ($showPrivate, $showProtected) {
-            return array_filter($properties, function($propertyData)use ($showPrivate, $showProtected) {
+        $filterProperties = function (array $properties) use ($showPrivate, $showProtected) {
+            return array_filter($properties, function ($propertyData) use ($showPrivate, $showProtected) {
                 if (!$showPrivate && array_search('private', $propertyData['keywords']) !== false) {
                     return false;
                 }
@@ -218,7 +218,7 @@ class DocsGenerator
             });
         };
 
-        $getOutputListItem = function($name, $description, $htmlClassPrefix = null) use ($outputType) {
+        $getOutputListItem = function ($name, $description, $htmlClassPrefix = null) use ($outputType) {
             $output = '';
             if ($outputType === 'md') {
                 $output = '##### ' . $name . "\n\n";
@@ -236,7 +236,7 @@ class DocsGenerator
             return $output;
         };
 
-        $getOutputList = function($content, $title, $htmlClassPrefix, $level = 0) use ($outputType) {
+        $getOutputList = function ($content, $title, $htmlClassPrefix, $level = 0) use ($outputType) {
             $output = '';
             if (!empty($content)) {
                 if ($outputType === 'md') {
@@ -251,7 +251,7 @@ class DocsGenerator
             return $output;
         };
 
-        $getExamplesOutput = function($examples, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList) {
+        $getExamplesOutput = function ($examples, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList) {
             $output = '';
             $validExamples = [];
             if (!empty($examples)) {
@@ -294,7 +294,7 @@ class DocsGenerator
             return $output;
         };
 
-        $getSeeOutput = function($sees, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList, $getOutputListItem) {
+        $getSeeOutput = function ($sees, $htmlContainerPrefix, $htmlClassPrefix) use ($outputType, $getOutputList, $getOutputListItem) {
             $output = '';
             $validSees = [];
             if (!empty($sees)) {
@@ -353,19 +353,19 @@ class DocsGenerator
             return $output;
         };
 
-        $getConstantSynopsis = function(array $constantData, bool $richOutput = true) use ($getType) {
+        $getConstantSynopsis = function (array $constantData, bool $richOutput = true) use ($getType) {
             return 'const ' . $getType((string) $constantData['type'], $richOutput) . ' ' . $constantData['name'];
         };
 
-        $getPropertySynopsis = function(array $propertyData, bool $richOutput = true) use ($getType) {
+        $getPropertySynopsis = function (array $propertyData, bool $richOutput = true) use ($getType) {
             return implode(' ', $propertyData['keywords']) . ' ' . $getType((string) $propertyData['type'], $richOutput) . ' $' . $propertyData['name'];
         };
 
-        $getEventSynopsis = function(array $eventData, bool $richOutput = true) use ($getType) {
+        $getEventSynopsis = function (array $eventData, bool $richOutput = true) use ($getType) {
             return $getType($eventData['type'], $richOutput) . ' ' . $eventData['name'];
         };
 
-        $getMethodSynopsis = function(array $methodData, bool $richOutput = true) use ($getType, $outputType): string {
+        $getMethodSynopsis = function (array $methodData, bool $richOutput = true) use ($getType, $outputType): string {
             $result = '';
             $keywords = [];
             if (array_search('abstract', $methodData['keywords']) !== false) {
@@ -392,7 +392,7 @@ class DocsGenerator
             if (empty($methodData['parameters'])) {
                 $parameters = 'void';
             } else {
-                $updateValue = function($value) {
+                $updateValue = function ($value) {
                     if (is_string($value)) {
                         return '\'' . str_replace('\'', '\\\'', $value) . '\'';
                     }
@@ -446,7 +446,7 @@ class DocsGenerator
             return $result;
         };
 
-        $getClassSynopsis = function(array $classData, bool $richOutput = true) use ($filterProperties, $filterMethods, $getConstantSynopsis, $getPropertySynopsis, $getMethodSynopsis, $getType): string {
+        $getClassSynopsis = function (array $classData, bool $richOutput = true) use ($filterProperties, $filterMethods, $getConstantSynopsis, $getPropertySynopsis, $getMethodSynopsis, $getType): string {
             $className = $classData['name'];
             $result = $className;
 
@@ -807,5 +807,4 @@ class DocsGenerator
         }
         return $result;
     }
-
 }
