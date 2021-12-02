@@ -147,6 +147,9 @@ class DocsGenerator
         };
 
         $getType = function ($type, bool $richOutput = true) use ($outputType) {
+            if($type === null){
+                return null;
+            }
             if (!$richOutput) {
                 return $type;
             }
@@ -299,8 +302,8 @@ class DocsGenerator
             $validSees = [];
             if (!empty($sees)) {
                 foreach ($sees as $see) {
-                    $seeLocation = $see['location'];
-                    $seeDescription = $see['description'];
+                    $seeLocation = (string)$see['location'];
+                    $seeDescription = (string)$see['description'];
                     $seeClass = null;
                     $seeMethod = null;
                     $seeProperty = null;
@@ -523,7 +526,7 @@ class DocsGenerator
                 $indexData['classes'][] = [
                     'name' => $className,
                     'file' => $this->getClassOutputFilename($className, 'json'),
-                    'description' => $classData['description'],
+                    'description' => (string)$classData['description'],
                 ];
             }
             $writeFile('index.json', json_encode($indexData, JSON_PRETTY_PRINT));
