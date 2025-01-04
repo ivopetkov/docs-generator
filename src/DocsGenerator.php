@@ -141,7 +141,7 @@ class DocsGenerator
 
         $classNames = $this->prepareClasses();
 
-        $writeFile = function (string $filename, string $content) use ($outputDir) {
+        $writeFile = function (string $filename, string $content) use ($outputDir): void {
             $filename = $outputDir . DIRECTORY_SEPARATOR . $filename;
             file_put_contents($filename, $content);
         };
